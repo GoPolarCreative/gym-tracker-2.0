@@ -1,18 +1,13 @@
 import { useState } from 'react'
-import { getSections, getPhaseLabel, WORKOUT_DAYS, getUnitLabel } from '../data/plan'
+import { getSections, getPhaseLabel, getUnitLabel, type PlanMap } from '../data/plan'
 import { useGym } from '../hooks/useGym'
+import type { WorkoutType } from '../lib/planGenerator'
 
-const DAY_LABELS_SHORT: Record<string, string> = {
-  mon: 'Mon · Push',
-  tue: 'Tue · Pull',
-  wed: 'Wed · Legs',
-  fri: 'Fri · Arms',
-  sat: 'Sat · Legs',
+const TYPE_DISPLAY: Record<WorkoutType, string> = {
+  Push: 'Push', Pull: 'Pull', Legs: 'Legs', Arms: 'Arms',
+  Upper: 'Upper', Lower: 'Lower', FullBody: 'Full Body',
 }
 
-type Props = { totalWeeks: number }
-
-// Read either the gym-scoped value or the legacy unsuffixed value.
 function readField(week: number, day: string, exId: string, set: number, field: string, gym: string) {
   return (
     localStorage.getItem(`ppl_w${week}_${day}_${exId}_s${set}_${field}__${gym}`) ||
@@ -20,10 +15,27 @@ function readField(week: number, day: string, exId: string, set: number, field: 
   )
 }
 
-export function HistoryPanel({ totalWeeks }: Props) {
-  const [selectedDay, setSelectedDay] = useState('mon')
+type Props = {
+  totalWeeks: number
+  userPlan: PlanMap | null
+  dayTypes: Record<string, WorkoutType>
+  trainingDays: string[]
+}
+
+export function HistoryPanel({ totalWeeks, userPlan, dayTypes, trainingDays }: Props) {
+  const days = trainingDays.length > 0 ? trainingDays : ['mon', 'tue', 'wed', 'fri', 'sat']
+  const [selectedDay, setSelectedDay] = useState(days[0])
   const [gym] = useGym()
   const weeks = Array.from({ length: totalWeeks }, (_, i) => totalWeeks - i)
+
+  const dayShort: Record<string, string> = {
+    mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
+  }
+
+  const dayLabelFor = (d: string) => {
+    const wt = dayTypes[d]
+    return wt ? `${dayShort[d]} · ${TYPE_DISPLAY[wt]}` : dayShort[d]
+  }
 
   return (
     <div>
@@ -35,7 +47,7 @@ export function HistoryPanel({ totalWeeks }: Props) {
       </div>
 
       <div className="flex gap-2 flex-wrap mb-6">
-        {WORKOUT_DAYS.map(d => (
+        {days.map(d => (
           <button
             key={d}
             onClick={() => setSelectedDay(d)}
@@ -45,14 +57,14 @@ export function HistoryPanel({ totalWeeks }: Props) {
                 : 'border-[#2a2b2d] text-white/60 hover:border-[#3a3b3e] hover:text-white'
               }`}
           >
-            {DAY_LABELS_SHORT[d]}
+            {dayLabelFor(d)}
           </button>
         ))}
       </div>
 
       <div className="flex flex-col gap-4">
         {weeks.map(w => {
-          const sections = getSections(selectedDay, w)
+          const sections = getSections(selectedDay, w, userPlan ?? undefined)
           let hasData = false
           sections.forEach(s => s.exercises.forEach(ex => {
             for (let i = 1; i <= ex.sets; i++) {
@@ -116,7 +128,7 @@ export function HistoryPanel({ totalWeeks }: Props) {
         })}
 
         {weeks.every(w => {
-          const sections = getSections(selectedDay, w)
+          const sections = getSections(selectedDay, w, userPlan ?? undefined)
           return !sections.some(s => s.exercises.some(ex =>
             Array.from({ length: ex.sets }, (_, i) =>
               readField(w, selectedDay, ex.id, i + 1, 'w', gym)

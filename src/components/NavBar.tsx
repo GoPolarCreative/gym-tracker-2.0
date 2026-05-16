@@ -1,34 +1,79 @@
 import { useGym } from '../hooks/useGym'
 import type { GymKey } from '../data/plan'
+import type { WorkoutType } from '../lib/planGenerator'
 
-type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' | 'history' | 'body'
+export type AppTab =
+  | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+  | 'history' | 'body' | 'settings'
 
-const TABS: { key: DayKey; label: string; type: string }[] = [
-  { key: 'mon', label: 'Mon · Push',  type: 'push' },
-  { key: 'tue', label: 'Tue · Pull',  type: 'pull' },
-  { key: 'wed', label: 'Wed · Legs',  type: 'legs' },
-  { key: 'thu', label: 'Thu · Rest',  type: 'rest' },
-  { key: 'fri', label: 'Fri · Arms',  type: 'arms' },
-  { key: 'sat', label: 'Sat · Legs',  type: 'legs' },
-  { key: 'sun', label: 'Sun · Rest',  type: 'rest' },
-  { key: 'body', label: 'Body',       type: 'body' },
-  { key: 'history', label: 'History', type: 'history' },
-]
+const WEEKDAY_KEYS: ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun')[] =
+  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
-const ACTIVE_COLORS: Record<string, string> = {
-  push: 'border-[#f0a500] text-[#f0a500]',
-  pull: 'border-[#4a9eff] text-[#4a9eff]',
-  legs: 'border-[#3ecf6e] text-[#3ecf6e]',
-  arms: 'border-[#ff6b6b] text-[#ff6b6b]',
+const SHORT_LABELS: Record<string, string> = {
+  mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
+}
+
+const TYPE_DISPLAY_SHORT: Record<WorkoutType, string> = {
+  Push: 'Push',
+  Pull: 'Pull',
+  Legs: 'Legs',
+  Arms: 'Arms',
+  Upper: 'Upper',
+  Lower: 'Lower',
+  FullBody: 'Full',
+}
+
+const TYPE_COLOR: Record<WorkoutType, string> = {
+  Push: 'border-[#f0a500] text-[#f0a500]',
+  Pull: 'border-[#4a9eff] text-[#4a9eff]',
+  Legs: 'border-[#3ecf6e] text-[#3ecf6e]',
+  Arms: 'border-[#ff6b6b] text-[#ff6b6b]',
+  Upper: 'border-[#4a9eff] text-[#4a9eff]',
+  Lower: 'border-[#3ecf6e] text-[#3ecf6e]',
+  FullBody: 'border-[#a78bfa] text-[#a78bfa]',
+}
+
+const STATIC_TAB_COLORS: Record<string, string> = {
   history: 'border-[#a78bfa] text-[#a78bfa]',
   body: 'border-[#3ecf6e] text-[#3ecf6e]',
+  settings: 'border-white text-white',
   rest: 'border-white text-white',
 }
 
 const GYMS: GymKey[] = ['Jetts', 'FC']
 
-export function NavBar({ currentDay, setCurrentDay }: { currentDay: DayKey; setCurrentDay: (d: DayKey) => void }) {
+type Props = {
+  currentTab: AppTab
+  setCurrentTab: (t: AppTab) => void
+  dayTypes: Record<string, WorkoutType>
+}
+
+export function NavBar({ currentTab, setCurrentTab, dayTypes }: Props) {
   const [gym, setGym] = useGym()
+
+  const trainingTabs = WEEKDAY_KEYS.map(d => {
+    const wt = dayTypes[d]
+    if (wt) {
+      return {
+        key: d as AppTab,
+        label: `${SHORT_LABELS[d]} · ${TYPE_DISPLAY_SHORT[wt]}`,
+        activeClass: TYPE_COLOR[wt],
+      }
+    }
+    return {
+      key: d as AppTab,
+      label: `${SHORT_LABELS[d]} · Rest`,
+      activeClass: STATIC_TAB_COLORS.rest,
+    }
+  })
+
+  const extraTabs: { key: AppTab; label: string; activeClass: string }[] = [
+    { key: 'body',     label: 'Body',     activeClass: STATIC_TAB_COLORS.body },
+    { key: 'history',  label: 'History',  activeClass: STATIC_TAB_COLORS.history },
+    { key: 'settings', label: '⚙',        activeClass: STATIC_TAB_COLORS.settings },
+  ]
+
+  const allTabs = [...trainingTabs, ...extraTabs]
 
   return (
     <nav className="bg-[#18191b] border-b border-[#2a2b2d] sticky top-0 z-50">
@@ -37,14 +82,14 @@ export function NavBar({ currentDay, setCurrentDay }: { currentDay: DayKey; setC
           PPL
         </div>
         <div className="flex overflow-x-auto flex-1" style={{ scrollbarWidth: 'none' }}>
-          {TABS.map(tab => {
-            const isActive = currentDay === tab.key
-            const activeClass = isActive ? ACTIVE_COLORS[tab.type] : 'border-transparent text-white/60 hover:text-white'
+          {allTabs.map(tab => {
+            const isActive = currentTab === tab.key
+            const cls = isActive ? tab.activeClass : 'border-transparent text-white/60 hover:text-white'
             return (
               <button
                 key={tab.key}
-                onClick={() => setCurrentDay(tab.key)}
-                className={`px-3 py-4 text-xs font-semibold tracking-widest uppercase whitespace-nowrap border-b-2 transition-colors ${activeClass}`}
+                onClick={() => setCurrentTab(tab.key)}
+                className={`px-3 py-4 text-xs font-semibold tracking-widest uppercase whitespace-nowrap border-b-2 transition-colors ${cls}`}
               >
                 {tab.label}
               </button>
@@ -58,10 +103,7 @@ export function NavBar({ currentDay, setCurrentDay }: { currentDay: DayKey; setC
               key={g}
               onClick={() => setGym(g)}
               className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1.5 rounded-md transition-colors
-                ${gym === g
-                  ? 'bg-[#3ecf6e]/15 text-[#3ecf6e]'
-                  : 'text-white/40 hover:text-white'
-                }`}
+                ${gym === g ? 'bg-[#3ecf6e]/15 text-[#3ecf6e]' : 'text-white/40 hover:text-white'}`}
               aria-pressed={gym === g}
             >
               {g}
@@ -70,7 +112,6 @@ export function NavBar({ currentDay, setCurrentDay }: { currentDay: DayKey; setC
         </div>
       </div>
 
-      {/* On narrow screens, gym toggle wraps to its own row so it isn't cramped */}
       <div className="flex sm:hidden items-center gap-1 px-4 py-2 border-t border-[#2a2b2d]">
         <span className="text-[10px] font-bold tracking-widest uppercase text-white/40 mr-2">Gym</span>
         {GYMS.map(g => (
@@ -78,10 +119,7 @@ export function NavBar({ currentDay, setCurrentDay }: { currentDay: DayKey; setC
             key={g}
             onClick={() => setGym(g)}
             className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-md transition-colors
-              ${gym === g
-                ? 'bg-[#3ecf6e]/15 text-[#3ecf6e]'
-                : 'text-white/40 hover:text-white'
-              }`}
+              ${gym === g ? 'bg-[#3ecf6e]/15 text-[#3ecf6e]' : 'text-white/40 hover:text-white'}`}
             aria-pressed={gym === g}
           >
             {g}

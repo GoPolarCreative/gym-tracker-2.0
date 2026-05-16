@@ -171,8 +171,9 @@ export function getAccessoryIndex(week: number) {
   return getPhase(week) % 2
 }
 
-export function getSections(dayKey: string, week: number) {
-  const d = PLAN[dayKey]
+export function getSections(dayKey: string, week: number, planOverride?: PlanMap) {
+  const source = planOverride ?? PLAN
+  const d = source[dayKey]
   if (!d) return []
   const accIdx = getAccessoryIndex(week)
   return [

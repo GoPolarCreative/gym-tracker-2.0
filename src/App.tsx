@@ -1,45 +1,70 @@
 import { useState } from 'react'
-import { NavBar } from './components/NavBar'
+import { NavBar, type AppTab } from './components/NavBar'
 import { WeekBar } from './components/WeekBar'
 import { DayPanel } from './components/DayPanel'
 import { HistoryPanel } from './components/HistoryPanel'
 import { RestPanel } from './components/RestPanel'
 import { BodyPanel } from './components/BodyPanel'
 import { OnboardingModal } from './components/OnboardingModal'
+import { SettingsPanel } from './components/SettingsPanel'
 import { useWeek } from './hooks/useWeek'
 import { useProfile } from './hooks/useProfile'
 import { useGym } from './hooks/useGym'
-
-type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' | 'history' | 'body'
+import { useUserPlan, wipeWorkoutData } from './hooks/useUserPlan'
+import type { Profile } from './hooks/useProfile'
 
 export default function App() {
-  const [currentDay, setCurrentDay] = useState<DayKey>('mon')
+  const [currentTab, setCurrentTab] = useState<AppTab>('mon')
   const { currentWeek, totalWeeks, goToPrev, goToNext, addNewWeek } = useWeek()
-  const { profile, save } = useProfile()
+  const { profile, save, reset } = useProfile()
   const [, setGym] = useGym()
+  const { userPlan, regenerate, clear } = useUserPlan()
+  const [editingProfile, setEditingProfile] = useState(false)
 
-  const showOnboarding = !profile?.completed
+  const showInitialOnboarding = !profile?.completed && !editingProfile
+
+  const dayTypes = userPlan?.dayTypes ?? {}
+  const trainingDays = userPlan?.trainingDays ?? []
+  const isTrainingDay = (d: string) => trainingDays.includes(d)
+
+  const handleProfileComplete = (p: Profile) => {
+    save(p)
+    setGym(p.primaryGym)
+    const gen = regenerate(p)
+    setEditingProfile(false)
+    // Snap to the first training day so user sees their plan immediately
+    if (gen.trainingDays[0]) {
+      setCurrentTab(gen.trainingDays[0] as AppTab)
+    }
+  }
+
+  const handleWipeAll = () => {
+    wipeWorkoutData()
+    clear()
+    reset()
+    localStorage.removeItem('ppl_bodyweight_v1')
+    // Reload so every hook re-reads cleanly; otherwise stale week state lingers.
+    window.location.reload()
+  }
 
   const renderContent = () => {
-    if (currentDay === 'body') {
-      return <BodyPanel />
-    }
-    if (currentDay === 'history') {
-      return <HistoryPanel totalWeeks={totalWeeks} />
-    }
-    if (currentDay === 'thu') {
+    if (currentTab === 'body')     return <BodyPanel />
+    if (currentTab === 'settings') return <SettingsPanel profile={profile} onEdit={() => setEditingProfile(true)} onWipeAll={handleWipeAll} />
+    if (currentTab === 'history')  return <HistoryPanel totalWeeks={totalWeeks} userPlan={userPlan?.plan ?? null} dayTypes={dayTypes} trainingDays={trainingDays} />
+
+    // weekday tabs
+    if (!isTrainingDay(currentTab)) {
       return <RestPanel message="Rest Day" sub="Recovery is where growth happens. Sleep, eat, hydrate." />
     }
-    if (currentDay === 'sun') {
-      return <RestPanel message="Rest Day" sub="Full week complete. Reset and go again." />
-    }
-    return <DayPanel day={currentDay} week={currentWeek} />
+    return <DayPanel day={currentTab} week={currentWeek} userPlan={userPlan?.plan ?? null} workoutType={dayTypes[currentTab]} />
   }
+
+  const showWeekBar = currentTab !== 'body' && currentTab !== 'settings'
 
   return (
     <div className="min-h-screen bg-[#111213] text-white">
-      <NavBar currentDay={currentDay} setCurrentDay={d => setCurrentDay(d as DayKey)} />
-      {currentDay !== 'body' && (
+      <NavBar currentTab={currentTab} setCurrentTab={setCurrentTab} dayTypes={dayTypes} />
+      {showWeekBar && (
         <WeekBar
           currentWeek={currentWeek}
           totalWeeks={totalWeeks}
@@ -52,12 +77,13 @@ export default function App() {
         {renderContent()}
       </main>
 
-      {showOnboarding && (
+      {(showInitialOnboarding || editingProfile) && (
         <OnboardingModal
-          onComplete={p => {
-            save(p)
-            setGym(p.primaryGym)
-          }}
+          // Prefill from an existing profile when editing, or when an older
+          // profile is being migrated to the new selectedDays format.
+          existing={profile ?? null}
+          onComplete={handleProfileComplete}
+          onCancel={editingProfile ? () => setEditingProfile(false) : undefined}
         />
       )}
     </div>

@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react'
-import { getSections, DAY_LABELS, DAY_TYPE } from '../data/plan'
+import { getSections, DAY_LABELS, type PlanMap } from '../data/plan'
 import { ExerciseCard } from './ExerciseCard'
 import { getNotesKey, setNotesKey } from '../hooks/useStorage'
 import { useGym } from '../hooks/useGym'
+import type { WorkoutType } from '../lib/planGenerator'
 
 const TYPE_COLORS: Record<string, string> = {
   Push: 'text-[#f0a500] bg-[#f0a500]/10',
   Pull: 'text-[#4a9eff] bg-[#4a9eff]/10',
   Legs: 'text-[#3ecf6e] bg-[#3ecf6e]/10',
   Arms: 'text-[#ff6b6b] bg-[#ff6b6b]/10',
+  Upper: 'text-[#4a9eff] bg-[#4a9eff]/10',
+  Lower: 'text-[#3ecf6e] bg-[#3ecf6e]/10',
+  FullBody: 'text-[#a78bfa] bg-[#a78bfa]/10',
 }
 
 const TITLE_COLORS: Record<string, string> = {
@@ -16,21 +20,48 @@ const TITLE_COLORS: Record<string, string> = {
   Pull: 'text-[#4a9eff]',
   Legs: 'text-[#3ecf6e]',
   Arms: 'text-[#ff6b6b]',
+  Upper: 'text-[#4a9eff]',
+  Lower: 'text-[#3ecf6e]',
+  FullBody: 'text-[#a78bfa]',
 }
 
-type Props = { day: string; week: number }
+const TYPE_DISPLAY: Record<WorkoutType, string> = {
+  Push: 'Push',
+  Pull: 'Pull',
+  Legs: 'Legs',
+  Arms: 'Arms',
+  Upper: 'Upper',
+  Lower: 'Lower',
+  FullBody: 'Full Body',
+}
 
-export function DayPanel({ day, week }: Props) {
+type Props = {
+  day: string
+  week: number
+  userPlan: PlanMap | null
+  workoutType?: WorkoutType
+}
+
+export function DayPanel({ day, week, userPlan, workoutType }: Props) {
   const [gym] = useGym()
-  const sections = getSections(day, week)
+  const sections = getSections(day, week, userPlan ?? undefined)
   const label = DAY_LABELS[day]
-  const type = DAY_TYPE[day]
+  const type = workoutType ?? 'FullBody'
   const [notes, setNotes] = useState(() => getNotesKey(week, day, gym))
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     setNotes(getNotesKey(week, day, gym))
   }, [week, day, gym])
+
+  if (sections.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <h3 className="text-4xl font-extrabold tracking-widest uppercase text-white/20 mb-3">No plan yet</h3>
+        <p className="text-white/50 text-sm font-medium">Complete the questionnaire to generate a plan for this day.</p>
+      </div>
+    )
+  }
 
   const handleNotes = (v: string) => {
     setNotes(v)
@@ -50,7 +81,7 @@ export function DayPanel({ day, week }: Props) {
           {label}
         </h2>
         <span className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-md ${TYPE_COLORS[type]}`}>
-          {type}
+          {TYPE_DISPLAY[type]}
         </span>
         <span className="text-xs font-semibold tracking-widest uppercase px-2.5 py-1 rounded-md bg-white/5 text-white/60">
           @ {gym}
