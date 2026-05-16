@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { getSections, getPhaseLabel, WORKOUT_DAYS } from '../data/plan'
+import { getSections, getPhaseLabel, WORKOUT_DAYS, getUnitLabel } from '../data/plan'
+import { useGym } from '../hooks/useGym'
 
 const DAY_LABELS_SHORT: Record<string, string> = {
   mon: 'Mon · Push',
@@ -11,15 +12,27 @@ const DAY_LABELS_SHORT: Record<string, string> = {
 
 type Props = { totalWeeks: number }
 
+// Read either the gym-scoped value or the legacy unsuffixed value.
+function readField(week: number, day: string, exId: string, set: number, field: string, gym: string) {
+  return (
+    localStorage.getItem(`ppl_w${week}_${day}_${exId}_s${set}_${field}__${gym}`) ||
+    localStorage.getItem(`ppl_w${week}_${day}_${exId}_s${set}_${field}`)
+  )
+}
+
 export function HistoryPanel({ totalWeeks }: Props) {
   const [selectedDay, setSelectedDay] = useState('mon')
+  const [gym] = useGym()
   const weeks = Array.from({ length: totalWeeks }, (_, i) => totalWeeks - i)
 
   return (
     <div>
-      <h2 className="text-5xl font-extrabold tracking-wide uppercase text-[#a78bfa] mb-6">
+      <h2 className="text-5xl font-extrabold tracking-wide uppercase text-[#a78bfa] mb-2">
         History
       </h2>
+      <div className="text-xs text-white/40 font-medium tracking-widest uppercase mb-6">
+        Showing {gym} logs
+      </div>
 
       <div className="flex gap-2 flex-wrap mb-6">
         {WORKOUT_DAYS.map(d => (
@@ -43,7 +56,7 @@ export function HistoryPanel({ totalWeeks }: Props) {
           let hasData = false
           sections.forEach(s => s.exercises.forEach(ex => {
             for (let i = 1; i <= ex.sets; i++) {
-              if (localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i}_w`)) hasData = true
+              if (readField(w, selectedDay, ex.id, i, 'w', gym)) hasData = true
             }
           }))
           if (!hasData) return null
@@ -57,10 +70,13 @@ export function HistoryPanel({ totalWeeks }: Props) {
               <div className="p-4 flex flex-col gap-4">
                 {sections.map(section =>
                   section.exercises.map(ex => {
+                    const unit = getUnitLabel(ex, gym)
                     const sets = Array.from({ length: ex.sets }, (_, i) => {
-                      const wv = localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_w`)
-                      const rv = localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_r`)
-                      const done = localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_done`) === '1'
+                      const wv = readField(w, selectedDay, ex.id, i + 1, 'w', gym)
+                      const rv = readField(w, selectedDay, ex.id, i + 1, 'r', gym)
+                      const done =
+                        localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_done__${gym}`) === '1' ||
+                        localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_done`) === '1'
                       return { wv, rv, done }
                     }).filter(s => s.wv || s.rv)
 
@@ -78,7 +94,7 @@ export function HistoryPanel({ totalWeeks }: Props) {
                                   : 'border-[#2a2b2d] text-white/70'
                               }`}
                             >
-                              {s.wv || '—'}kg × {s.rv || '—'}
+                              {s.wv || '—'}{unit} × {s.rv || '—'}
                             </span>
                           ))}
                         </div>
@@ -87,7 +103,9 @@ export function HistoryPanel({ totalWeeks }: Props) {
                   })
                 )}
                 {(() => {
-                  const notes = localStorage.getItem(`ppl_w${w}_${selectedDay}_notes`)
+                  const notes =
+                    localStorage.getItem(`ppl_w${w}_${selectedDay}_notes__${gym}`) ||
+                    localStorage.getItem(`ppl_w${w}_${selectedDay}_notes`)
                   return notes ? (
                     <div className="text-white/50 text-xs font-medium italic pt-3 border-t border-[#2a2b2d]">"{notes}"</div>
                   ) : null
@@ -101,12 +119,12 @@ export function HistoryPanel({ totalWeeks }: Props) {
           const sections = getSections(selectedDay, w)
           return !sections.some(s => s.exercises.some(ex =>
             Array.from({ length: ex.sets }, (_, i) =>
-              localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_w`)
+              readField(w, selectedDay, ex.id, i + 1, 'w', gym)
             ).some(Boolean)
           ))
         }) && (
           <div className="text-center py-12 text-white/40 text-sm font-medium">
-            No data logged yet for this day.
+            No data logged yet for this day at {gym}.
           </div>
         )}
       </div>

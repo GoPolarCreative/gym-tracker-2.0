@@ -1,4 +1,7 @@
-type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' | 'history'
+import { useGym } from '../hooks/useGym'
+import type { GymKey } from '../data/plan'
+
+type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' | 'history' | 'body'
 
 const TABS: { key: DayKey; label: string; type: string }[] = [
   { key: 'mon', label: 'Mon · Push',  type: 'push' },
@@ -8,6 +11,7 @@ const TABS: { key: DayKey; label: string; type: string }[] = [
   { key: 'fri', label: 'Fri · Arms',  type: 'arms' },
   { key: 'sat', label: 'Sat · Legs',  type: 'legs' },
   { key: 'sun', label: 'Sun · Rest',  type: 'rest' },
+  { key: 'body', label: 'Body',       type: 'body' },
   { key: 'history', label: 'History', type: 'history' },
 ]
 
@@ -17,29 +21,72 @@ const ACTIVE_COLORS: Record<string, string> = {
   legs: 'border-[#3ecf6e] text-[#3ecf6e]',
   arms: 'border-[#ff6b6b] text-[#ff6b6b]',
   history: 'border-[#a78bfa] text-[#a78bfa]',
+  body: 'border-[#3ecf6e] text-[#3ecf6e]',
   rest: 'border-white text-white',
 }
 
+const GYMS: GymKey[] = ['Jetts', 'FC']
+
 export function NavBar({ currentDay, setCurrentDay }: { currentDay: DayKey; setCurrentDay: (d: DayKey) => void }) {
+  const [gym, setGym] = useGym()
+
   return (
-    <nav className="bg-[#18191b] border-b border-[#2a2b2d] sticky top-0 z-50 flex items-center px-4">
-      <div className="text-xl font-bold tracking-widest text-white pr-4 border-r border-[#2a2b2d] mr-1 py-4 whitespace-nowrap">
-        PPL
-      </div>
-      <div className="flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        {TABS.map(tab => {
-          const isActive = currentDay === tab.key
-          const activeClass = isActive ? ACTIVE_COLORS[tab.type] : 'border-transparent text-white/60 hover:text-white'
-          return (
+    <nav className="bg-[#18191b] border-b border-[#2a2b2d] sticky top-0 z-50">
+      <div className="flex items-center px-4">
+        <div className="text-xl font-bold tracking-widest text-white pr-4 border-r border-[#2a2b2d] mr-1 py-4 whitespace-nowrap">
+          PPL
+        </div>
+        <div className="flex overflow-x-auto flex-1" style={{ scrollbarWidth: 'none' }}>
+          {TABS.map(tab => {
+            const isActive = currentDay === tab.key
+            const activeClass = isActive ? ACTIVE_COLORS[tab.type] : 'border-transparent text-white/60 hover:text-white'
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setCurrentDay(tab.key)}
+                className={`px-3 py-4 text-xs font-semibold tracking-widest uppercase whitespace-nowrap border-b-2 transition-colors ${activeClass}`}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="hidden sm:flex items-center gap-1 ml-3 pl-3 border-l border-[#2a2b2d]">
+          {GYMS.map(g => (
             <button
-              key={tab.key}
-              onClick={() => setCurrentDay(tab.key)}
-              className={`px-3 py-4 text-xs font-semibold tracking-widest uppercase whitespace-nowrap border-b-2 transition-colors ${activeClass}`}
+              key={g}
+              onClick={() => setGym(g)}
+              className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1.5 rounded-md transition-colors
+                ${gym === g
+                  ? 'bg-[#3ecf6e]/15 text-[#3ecf6e]'
+                  : 'text-white/40 hover:text-white'
+                }`}
+              aria-pressed={gym === g}
             >
-              {tab.label}
+              {g}
             </button>
-          )
-        })}
+          ))}
+        </div>
+      </div>
+
+      {/* On narrow screens, gym toggle wraps to its own row so it isn't cramped */}
+      <div className="flex sm:hidden items-center gap-1 px-4 py-2 border-t border-[#2a2b2d]">
+        <span className="text-[10px] font-bold tracking-widest uppercase text-white/40 mr-2">Gym</span>
+        {GYMS.map(g => (
+          <button
+            key={g}
+            onClick={() => setGym(g)}
+            className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-md transition-colors
+              ${gym === g
+                ? 'bg-[#3ecf6e]/15 text-[#3ecf6e]'
+                : 'text-white/40 hover:text-white'
+              }`}
+            aria-pressed={gym === g}
+          >
+            {g}
+          </button>
+        ))}
       </div>
     </nav>
   )

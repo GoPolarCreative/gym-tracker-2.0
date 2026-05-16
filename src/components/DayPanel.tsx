@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getSections, DAY_LABELS, DAY_TYPE } from '../data/plan'
 import { ExerciseCard } from './ExerciseCard'
 import { getNotesKey, setNotesKey } from '../hooks/useStorage'
+import { useGym } from '../hooks/useGym'
 
 const TYPE_COLORS: Record<string, string> = {
   Push: 'text-[#f0a500] bg-[#f0a500]/10',
@@ -20,35 +21,39 @@ const TITLE_COLORS: Record<string, string> = {
 type Props = { day: string; week: number }
 
 export function DayPanel({ day, week }: Props) {
+  const [gym] = useGym()
   const sections = getSections(day, week)
   const label = DAY_LABELS[day]
   const type = DAY_TYPE[day]
-  const [notes, setNotes] = useState(() => getNotesKey(week, day))
+  const [notes, setNotes] = useState(() => getNotesKey(week, day, gym))
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    setNotes(getNotesKey(week, day))
-  }, [week, day])
+    setNotes(getNotesKey(week, day, gym))
+  }, [week, day, gym])
 
   const handleNotes = (v: string) => {
     setNotes(v)
-    setNotesKey(week, day, v)
+    setNotesKey(week, day, v, gym)
   }
 
   const handleMasterSave = () => {
-    localStorage.setItem(`ppl_w${week}_${day}_committed`, '1')
+    localStorage.setItem(`ppl_w${week}_${day}_committed__${gym}`, '1')
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
 
   return (
     <div>
-      <div className="flex items-baseline gap-3 mb-6">
+      <div className="flex items-baseline gap-3 mb-6 flex-wrap">
         <h2 className={`text-5xl font-extrabold tracking-wide uppercase leading-none ${TITLE_COLORS[type]}`}>
           {label}
         </h2>
         <span className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-md ${TYPE_COLORS[type]}`}>
           {type}
+        </span>
+        <span className="text-xs font-semibold tracking-widest uppercase px-2.5 py-1 rounded-md bg-white/5 text-white/60">
+          @ {gym}
         </span>
       </div>
 
@@ -59,7 +64,7 @@ export function DayPanel({ day, week }: Props) {
             <div className="flex-1 h-px bg-[#2a2b2d]" />
           </div>
           {section.exercises.map(ex => (
-            <ExerciseCard key={ex.id} exercise={ex} week={week} day={day} rotates={section.rotates} />
+            <ExerciseCard key={ex.id} exercise={ex} week={week} day={day} gym={gym} rotates={!!section.rotates} />
           ))}
         </div>
       ))}
