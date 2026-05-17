@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavBar, type AppTab } from './components/NavBar'
 import { WeekBar } from './components/WeekBar'
 import { DayPanel } from './components/DayPanel'
@@ -8,16 +8,13 @@ import { BodyPanel } from './components/BodyPanel'
 import { OnboardingModal } from './components/OnboardingModal'
 import { SettingsPanel } from './components/SettingsPanel'
 import { useWeek } from './hooks/useWeek'
-import { useProfile } from './hooks/useProfile'
-import { useGym } from './hooks/useGym'
+import { useProfile, type Profile } from './hooks/useProfile'
 import { useUserPlan, wipeWorkoutData } from './hooks/useUserPlan'
-import type { Profile } from './hooks/useProfile'
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<AppTab>('mon')
   const { currentWeek, totalWeeks, goToPrev, goToNext, addNewWeek } = useWeek()
   const { profile, save, reset } = useProfile()
-  const [, setGym] = useGym()
   const { userPlan, regenerate, clear } = useUserPlan()
   const [editingProfile, setEditingProfile] = useState(false)
 
@@ -27,12 +24,19 @@ export default function App() {
   const trainingDays = userPlan?.trainingDays ?? []
   const isTrainingDay = (d: string) => trainingDays.includes(d)
 
+  // If a profile exists but no plan has been generated yet (e.g. after migration),
+  // synthesize one once on mount.
+  useEffect(() => {
+    if (profile?.completed && profile.selectedDays.length > 0 && !userPlan) {
+      regenerate(profile)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.completed])
+
   const handleProfileComplete = (p: Profile) => {
     save(p)
-    setGym(p.primaryGym)
     const gen = regenerate(p)
     setEditingProfile(false)
-    // Snap to the first training day so user sees their plan immediately
     if (gen.trainingDays[0]) {
       setCurrentTab(gen.trainingDays[0] as AppTab)
     }
@@ -42,8 +46,6 @@ export default function App() {
     wipeWorkoutData()
     clear()
     reset()
-    localStorage.removeItem('ppl_bodyweight_v1')
-    // Reload so every hook re-reads cleanly; otherwise stale week state lingers.
     window.location.reload()
   }
 
@@ -52,7 +54,6 @@ export default function App() {
     if (currentTab === 'settings') return <SettingsPanel profile={profile} onEdit={() => setEditingProfile(true)} onWipeAll={handleWipeAll} />
     if (currentTab === 'history')  return <HistoryPanel totalWeeks={totalWeeks} userPlan={userPlan?.plan ?? null} dayTypes={dayTypes} trainingDays={trainingDays} />
 
-    // weekday tabs
     if (!isTrainingDay(currentTab)) {
       return <RestPanel message="Rest Day" sub="Recovery is where growth happens. Sleep, eat, hydrate." />
     }
@@ -79,8 +80,6 @@ export default function App() {
 
       {(showInitialOnboarding || editingProfile) && (
         <OnboardingModal
-          // Prefill from an existing profile when editing, or when an older
-          // profile is being migrated to the new selectedDays format.
           existing={profile ?? null}
           onComplete={handleProfileComplete}
           onCancel={editingProfile ? () => setEditingProfile(false) : undefined}

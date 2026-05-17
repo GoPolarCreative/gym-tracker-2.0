@@ -1,45 +1,71 @@
 import { useEffect, useState } from 'react'
-import type { GymKey } from '../data/plan'
 
-export type Goal = 'size' | 'strength' | 'cut' | 'general'
+export type Goal = 'build_muscle' | 'build_strength' | 'general'
 export type Experience = 'beginner' | 'intermediate' | 'advanced'
+export type MachineLabel = 'pin' | 'kg'
 
 export type Profile = {
+  daysPerWeek: 3 | 4 | 5 | 6
   goal: Goal
   experience: Experience
-  daysPerWeek: 3 | 4 | 5 | 6
-  selectedDays: string[]   // e.g. ['mon','tue','wed','fri','sat']
-  primaryGym: GymKey
-  startedAt: string  // ISO date
+  machineLabel: MachineLabel
+  coreFinisher: boolean
+  calfFinisher: boolean
+  selectedDays: string[]   // weekday keys: 'mon','tue',...,'sun'
+  startedAt: string        // ISO date
   completed: boolean
 }
 
-const KEY = 'ppl_profile_v1'
+const KEY = 'ppl_profile_v2'
+const LEGACY_KEY = 'ppl_profile_v1'
 const PROFILE_EVENT = 'ppl-profile-change'
 
 function read(): Profile | null {
+  // Try v2 first
   const raw = localStorage.getItem(KEY)
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as Profile
-    // Migration: older profiles didn't have selectedDays. If it's missing or
-    // empty, treat the profile as incomplete so the questionnaire re-opens
-    // (with the user's previous answers pre-filled) to capture the new step.
-    if (!Array.isArray(parsed.selectedDays) || parsed.selectedDays.length === 0) {
-      parsed.selectedDays = []
-      parsed.completed = false
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as Profile
+      if (!Array.isArray(parsed.selectedDays)) parsed.selectedDays = []
+      return parsed
+    } catch {
+      // fall through to legacy
     }
-    return parsed
-  } catch {
-    return null
   }
+
+  // Migrate from legacy v1 (had goal: 'size'|'strength'|'cut'|'general' and primaryGym).
+  const legacy = localStorage.getItem(LEGACY_KEY)
+  if (legacy) {
+    try {
+      const old = JSON.parse(legacy) as Record<string, unknown>
+      const goalMap: Record<string, Goal> = {
+        size: 'build_muscle',
+        strength: 'build_strength',
+        cut: 'build_muscle',
+        general: 'general',
+      }
+      const profile: Profile = {
+        daysPerWeek: (old.daysPerWeek as 3 | 4 | 5 | 6) ?? 5,
+        goal: goalMap[(old.goal as string) ?? 'general'] ?? 'general',
+        experience: (old.experience as Experience) ?? 'intermediate',
+        machineLabel: (old.primaryGym === 'Jetts' ? 'pin' : 'kg'),
+        coreFinisher: false,
+        calfFinisher: false,
+        selectedDays: Array.isArray(old.selectedDays) ? (old.selectedDays as string[]) : [],
+        startedAt: (old.startedAt as string) ?? new Date().toISOString(),
+        // Force re-onboarding so user fills in the new questions
+        completed: false,
+      }
+      return profile
+    } catch {
+      return null
+    }
+  }
+
+  return null
 }
 
-export function useProfile(): {
-  profile: Profile | null
-  save: (p: Profile) => void
-  reset: () => void
-} {
+export function useProfile() {
   const [profile, setProfile] = useState<Profile | null>(read)
 
   useEffect(() => {
@@ -60,9 +86,15 @@ export function useProfile(): {
 
   const reset = () => {
     localStorage.removeItem(KEY)
+    localStorage.removeItem(LEGACY_KEY)
     setProfile(null)
     window.dispatchEvent(new Event(PROFILE_EVENT))
   }
 
   return { profile, save, reset }
+}
+
+// Convenience: machineLabel with fallback.
+export function getMachineLabel(profile: Profile | null): MachineLabel {
+  return profile?.machineLabel ?? 'kg'
 }

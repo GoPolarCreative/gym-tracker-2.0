@@ -3,7 +3,8 @@ import type { PlanMap } from '../data/plan'
 import { generatePlan, type GeneratedPlan, type WorkoutType } from '../lib/planGenerator'
 import type { Profile } from './useProfile'
 
-const PLAN_KEY = 'ppl_user_plan_v1'
+const PLAN_KEY = 'ppl_user_plan_v2'
+const LEGACY_PLAN_KEY = 'ppl_user_plan_v1'
 const PLAN_EVENT = 'ppl-plan-change'
 
 type StoredPlan = {
@@ -28,11 +29,7 @@ function write(p: GeneratedPlan) {
   window.dispatchEvent(new Event(PLAN_EVENT))
 }
 
-export function useUserPlan(): {
-  userPlan: StoredPlan | null
-  regenerate: (profile: Profile) => StoredPlan
-  clear: () => void
-} {
+export function useUserPlan() {
   const [userPlan, setUserPlan] = useState<StoredPlan | null>(read)
 
   useEffect(() => {
@@ -54,6 +51,7 @@ export function useUserPlan(): {
 
   const clear = () => {
     localStorage.removeItem(PLAN_KEY)
+    localStorage.removeItem(LEGACY_PLAN_KEY)
     setUserPlan(null)
     window.dispatchEvent(new Event(PLAN_EVENT))
   }
@@ -61,13 +59,14 @@ export function useUserPlan(): {
   return { userPlan, regenerate, clear }
 }
 
-// Wipe every workout-set / notes localStorage key so the user starts fresh
-// when they re-run the questionnaire.
+// Wipe every workout-set / notes / bodyweight / swap localStorage key.
 export function wipeWorkoutData() {
   const keys: string[] = []
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i)
-    if (k && k.startsWith('ppl_w')) keys.push(k)
+    if (k && (k.startsWith('ppl_w') || k.startsWith('ppl_bodyweight') || k.startsWith('ppl_swaps'))) {
+      keys.push(k)
+    }
   }
   keys.forEach(k => localStorage.removeItem(k))
   localStorage.removeItem('ppl_totalWeeks')

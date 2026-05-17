@@ -1,215 +1,335 @@
 import type { Exercise, PlanMap, DayPlan } from '../data/plan'
-import type { Profile, Goal, Experience } from '../hooks/useProfile'
-import { EXERCISE_POOL, type ExerciseCategory, type ExerciseDef } from '../data/exercises'
+import type { Profile, Experience } from '../hooks/useProfile'
+import {
+  EXERCISE_POOL,
+  CORE_FINISHER, CALF_FINISHER,
+  type ExerciseCategory, type ExerciseDef,
+} from '../data/exercises'
 
-export type WorkoutType = 'Push' | 'Pull' | 'Legs' | 'Arms' | 'Upper' | 'Lower' | 'FullBody'
+// ----- workout types -----
+
+export type WorkoutType =
+  | 'Full Body'
+  | 'Upper' | 'Lower'
+  | 'Push' | 'Pull' | 'Legs (Quad)' | 'Arms' | 'Legs (Ham)'
+  | 'Push A' | 'Pull A' | 'Legs A' | 'Push B' | 'Pull B' | 'Legs B'
 
 export const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
-export type DayKey = typeof DAY_KEYS[number]
 
-// A "slot" is one exercise pulled from a category, with goal-tuned reps and a
-// tier preference for picking the actual movement.
-type Slot = {
+// ----- slot definitions (categories + which pool/phase variant) -----
+
+type CompoundSlot = {
   category: ExerciseCategory
-  isMain: boolean   // main compounds get higher sets / lower reps for strength
+  /** Force a specific exercise name (e.g. Pull-Ups not Deadlift). Optional. */
+  preferred?: string
 }
 
-// Each workout type defines its compound and accessory slot list.
-// The same list is used for phase A and phase B — but the generator picks
-// different exercises from each pool for the two phases so weeks 1-4 vs
-// 5-8 feel different.
-const WORKOUT_BLUEPRINTS: Record<WorkoutType, { compounds: Slot[]; accessories: Slot[] }> = {
-  Push: {
-    compounds: [
-      { category: 'chest_compound',   isMain: true },
-      { category: 'shoulder_compound', isMain: true },
-    ],
-    accessories: [
-      { category: 'chest_iso',     isMain: false },
-      { category: 'shoulder_iso',  isMain: false },
-      { category: 'chest_iso',     isMain: false },
-      { category: 'tricep',        isMain: false },
-      { category: 'tricep',        isMain: false },
-    ],
-  },
-  Pull: {
-    compounds: [
-      { category: 'back_compound', isMain: true },
-      { category: 'back_compound', isMain: true },
-    ],
-    accessories: [
-      { category: 'back_iso',  isMain: false },
-      { category: 'back_iso',  isMain: false },
-      { category: 'rear_delt', isMain: false },
-      { category: 'bicep',     isMain: false },
-      { category: 'bicep',     isMain: false },
-    ],
-  },
-  Legs: {
-    compounds: [
-      { category: 'legs_compound', isMain: true },
-      { category: 'legs_compound', isMain: true },
-    ],
-    accessories: [
-      { category: 'quad_iso',      isMain: false },
-      { category: 'hamstring_iso', isMain: false },
-      { category: 'glute_iso',     isMain: false },
-      { category: 'calf',          isMain: false },
-    ],
-  },
-  Arms: {
-    compounds: [
-      { category: 'bicep',  isMain: true },
-      { category: 'tricep', isMain: true },
-    ],
-    accessories: [
-      { category: 'bicep',  isMain: false },
-      { category: 'bicep',  isMain: false },
-      { category: 'tricep', isMain: false },
-      { category: 'tricep', isMain: false },
-    ],
-  },
-  Upper: {
-    compounds: [
-      { category: 'chest_compound', isMain: true },
-      { category: 'back_compound',  isMain: true },
-    ],
-    accessories: [
-      { category: 'shoulder_compound', isMain: false },
-      { category: 'chest_iso',         isMain: false },
-      { category: 'back_iso',          isMain: false },
-      { category: 'bicep',             isMain: false },
-      { category: 'tricep',            isMain: false },
-    ],
-  },
-  Lower: {
-    compounds: [
-      { category: 'legs_compound', isMain: true },
-      { category: 'legs_compound', isMain: true },
-    ],
-    accessories: [
-      { category: 'quad_iso',      isMain: false },
-      { category: 'hamstring_iso', isMain: false },
-      { category: 'glute_iso',     isMain: false },
-      { category: 'calf',          isMain: false },
-    ],
-  },
-  FullBody: {
-    compounds: [
-      { category: 'legs_compound',  isMain: true },
-      { category: 'chest_compound', isMain: true },
-      { category: 'back_compound',  isMain: true },
-    ],
-    accessories: [
-      { category: 'shoulder_iso', isMain: false },
-      { category: 'bicep',        isMain: false },
-      { category: 'tricep',       isMain: false },
-    ],
-  },
+type AccessorySlot = {
+  category: ExerciseCategory
+  /** Phase B can use the higher end of the rep range for variety. */
+  highRep?: boolean
 }
 
-// Day-count → ordered list of workout types.
-const SPLITS: Record<3 | 4 | 5 | 6, WorkoutType[]> = {
-  3: ['Push', 'Pull', 'Legs'],
-  4: ['Upper', 'Lower', 'Upper', 'Lower'],
-  5: ['Push', 'Pull', 'Legs', 'Arms', 'Legs'],
-  6: ['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs'],
+type SessionTemplate = {
+  type: WorkoutType
+  compounds: CompoundSlot[]
+  accessoriesA: AccessorySlot[]
+  accessoriesB: AccessorySlot[]
+  /** Which finisher (if user enabled it) attaches to this session. */
+  finisher?: 'core' | 'calf'
 }
 
-// ---------- goal / experience tuning ----------
+// All rules collected at the top so they're easy to find/tune.
+const SETS_COMPOUND = 4
+const SETS_ACCESSORY = 3
+const REPS_COMPOUND = '4–6 reps'
+const REPS_ACCESSORY = '10–15 reps'
+const REPS_ACCESSORY_HIGH = '12–15 reps'  // Phase B / 6-day B sessions
+const MAX_ACCESSORIES = 4
 
-function repsForSlot(slot: Slot, goal: Goal): string {
-  if (slot.isMain) {
-    switch (goal) {
-      case 'strength': return '4–6 reps'
-      case 'size':     return '6–8 reps'
-      case 'cut':      return '8–10 reps'
-      case 'general':  return '5–8 reps'
-    }
-  }
-  switch (goal) {
-    case 'strength': return '6–8 reps'
-    case 'size':     return '8–12 reps'
-    case 'cut':      return '12–15 reps'
-    case 'general':  return '10–12 reps'
-  }
+// ----- templates per session type -----
+
+const FULL_BODY: SessionTemplate = {
+  type: 'Full Body',
+  compounds: [
+    { category: 'legs_compound_quad', preferred: 'Barbell Back Squat' },
+    { category: 'chest_compound',     preferred: 'Barbell Bench Press' },
+  ],
+  accessoriesA: [
+    { category: 'back_iso' },
+    { category: 'shoulder_iso' },
+    { category: 'bicep' },
+    { category: 'tricep' },
+  ],
+  accessoriesB: [
+    { category: 'back_compound' },
+    { category: 'rear_delt' },
+    { category: 'hamstring_iso' },
+    { category: 'tricep' },
+  ],
 }
 
-function setsForSlot(slot: Slot, experience: Experience): number {
-  if (slot.isMain) {
-    return experience === 'beginner' ? 3 : experience === 'advanced' ? 5 : 4
-  }
-  return experience === 'beginner' ? 2 : experience === 'advanced' ? 4 : 3
+const UPPER_A: SessionTemplate = {
+  type: 'Upper',
+  compounds: [
+    { category: 'chest_compound',    preferred: 'Barbell Bench Press' },
+    { category: 'back_compound',     preferred: 'Bent Over Barbell Row' },
+  ],
+  accessoriesA: [
+    { category: 'shoulder_iso' },
+    { category: 'chest_iso' },
+    { category: 'bicep' },
+    { category: 'tricep' },
+  ],
+  accessoriesB: [
+    { category: 'shoulder_compound' },
+    { category: 'back_iso' },
+    { category: 'bicep' },
+    { category: 'tricep' },
+  ],
 }
 
-// How many accessories to actually keep from the blueprint list.
-// Beginner: trim down so volume isn't crushing. Advanced: keep them all.
-function accessoryCount(experience: Experience, blueprintLen: number): number {
-  if (experience === 'beginner') return Math.min(3, blueprintLen)
-  if (experience === 'advanced') return blueprintLen
-  return Math.min(4, blueprintLen)
+const LOWER_A: SessionTemplate = {
+  type: 'Lower',
+  compounds: [
+    { category: 'legs_compound_quad', preferred: 'Barbell Back Squat' },
+    { category: 'legs_compound_ham',  preferred: 'Romanian Deadlift' },
+  ],
+  accessoriesA: [
+    { category: 'quad_iso' },
+    { category: 'hamstring_iso' },
+    { category: 'glute_iso' },
+    { category: 'calf' },
+  ],
+  accessoriesB: [
+    { category: 'quad_iso' },
+    { category: 'hamstring_iso' },
+    { category: 'glute_iso' },
+    { category: 'calf' },
+  ],
 }
 
-// Pick movements suited to experience tier with light fallback.
-function pickForExperience(pool: ExerciseDef[], experience: Experience): ExerciseDef[] {
-  const preferred = experience === 'beginner' ? ['basic', 'standard']
-                  : experience === 'advanced' ? ['advanced', 'standard']
-                  : ['standard', 'basic']
-  const sorted = [...pool].sort((a, b) => {
-    const ai = preferred.indexOf(a.tier ?? 'standard')
-    const bi = preferred.indexOf(b.tier ?? 'standard')
+const UPPER_B: SessionTemplate = {
+  type: 'Upper',
+  compounds: [
+    { category: 'shoulder_compound', preferred: 'Overhead Press' },
+    { category: 'back_compound',     preferred: 'Pull-Ups' },
+  ],
+  accessoriesA: [
+    { category: 'chest_iso' },
+    { category: 'back_iso' },
+    { category: 'rear_delt' },
+    { category: 'tricep' },
+  ],
+  accessoriesB: [
+    { category: 'chest_compound' },
+    { category: 'back_iso' },
+    { category: 'rear_delt' },
+    { category: 'bicep' },
+  ],
+}
+
+const LOWER_B: SessionTemplate = {
+  type: 'Lower',
+  compounds: [
+    { category: 'legs_compound_quad', preferred: 'Hack Squat' },
+    { category: 'legs_compound_ham',  preferred: 'Bulgarian Split Squat' },
+  ],
+  accessoriesA: [
+    { category: 'quad_iso' },
+    { category: 'hamstring_iso' },
+    { category: 'glute_iso' },
+    { category: 'calf' },
+  ],
+  accessoriesB: [
+    { category: 'quad_iso' },
+    { category: 'hamstring_iso' },
+    { category: 'glute_iso' },
+    { category: 'calf' },
+  ],
+}
+
+const PUSH: SessionTemplate = {
+  type: 'Push',
+  compounds: [
+    { category: 'chest_compound',    preferred: 'Barbell Bench Press' },
+    { category: 'shoulder_compound', preferred: 'Overhead Press' },
+  ],
+  accessoriesA: [
+    { category: 'chest_iso' },
+    { category: 'shoulder_iso' },
+    { category: 'tricep' },
+    { category: 'tricep' },
+  ],
+  accessoriesB: [
+    { category: 'chest_iso' },
+    { category: 'rear_delt' },
+    { category: 'tricep' },
+    { category: 'tricep' },
+  ],
+  finisher: 'core',  // 5-day default core target
+}
+
+const PULL: SessionTemplate = {
+  type: 'Pull',
+  compounds: [
+    { category: 'back_compound', preferred: 'Deadlift' },
+    { category: 'back_compound', preferred: 'Pull-Ups' },
+  ],
+  accessoriesA: [
+    { category: 'back_iso' },
+    { category: 'rear_delt' },
+    { category: 'bicep' },
+    { category: 'bicep' },
+  ],
+  accessoriesB: [
+    { category: 'back_iso' },
+    { category: 'rear_delt' },
+    { category: 'bicep' },
+    { category: 'bicep' },
+  ],
+}
+
+const LEGS_QUAD: SessionTemplate = {
+  type: 'Legs (Quad)',
+  compounds: [
+    { category: 'legs_compound_quad', preferred: 'Barbell Back Squat' },
+    { category: 'legs_compound_quad', preferred: 'Walking Lunges' },
+  ],
+  accessoriesA: [
+    { category: 'quad_iso' },
+    { category: 'quad_iso' },
+    { category: 'calf' },
+    { category: 'calf' },
+  ],
+  accessoriesB: [
+    { category: 'quad_iso' },
+    { category: 'glute_iso' },
+    { category: 'calf' },
+    { category: 'calf' },
+  ],
+  finisher: 'calf',
+}
+
+const ARMS: SessionTemplate = {
+  type: 'Arms',
+  compounds: [],   // arms day has no compounds per spec
+  accessoriesA: [
+    { category: 'bicep' },
+    { category: 'tricep' },
+    { category: 'bicep' },
+    { category: 'tricep' },
+  ],
+  accessoriesB: [
+    { category: 'bicep' },
+    { category: 'tricep' },
+    { category: 'bicep' },
+    { category: 'tricep' },
+  ],
+}
+
+const LEGS_HAM: SessionTemplate = {
+  type: 'Legs (Ham)',
+  compounds: [
+    { category: 'legs_compound_ham', preferred: 'Romanian Deadlift' },
+    { category: 'legs_compound_ham', preferred: 'Bulgarian Split Squat' },
+  ],
+  accessoriesA: [
+    { category: 'hamstring_iso' },
+    { category: 'glute_iso' },
+    { category: 'hamstring_iso' },
+    { category: 'calf' },
+  ],
+  accessoriesB: [
+    { category: 'hamstring_iso' },
+    { category: 'glute_iso' },
+    { category: 'hamstring_iso' },
+    { category: 'calf' },
+  ],
+}
+
+// 6-day uses A/B variants for variety.
+const PUSH_A: SessionTemplate = { ...PUSH, type: 'Push A' }
+const PULL_A: SessionTemplate = { ...PULL, type: 'Pull A' }
+const LEGS_A: SessionTemplate = { ...LEGS_QUAD, type: 'Legs A' }
+const PUSH_B: SessionTemplate = {
+  type: 'Push B',
+  compounds: [
+    { category: 'chest_compound',    preferred: 'Incline Barbell Bench' },
+    { category: 'shoulder_compound', preferred: 'Seated DB Shoulder Press' },
+  ],
+  accessoriesA: PUSH.accessoriesB.map(s => ({ ...s, highRep: true })),
+  accessoriesB: PUSH.accessoriesA.map(s => ({ ...s, highRep: true })),
+}
+const PULL_B: SessionTemplate = {
+  type: 'Pull B',
+  compounds: [
+    { category: 'back_compound', preferred: 'T-Bar Row' },
+    { category: 'back_compound', preferred: 'Pull-Ups' },
+  ],
+  accessoriesA: PULL.accessoriesB.map(s => ({ ...s, highRep: true })),
+  accessoriesB: PULL.accessoriesA.map(s => ({ ...s, highRep: true })),
+}
+const LEGS_B: SessionTemplate = {
+  type: 'Legs B',
+  compounds: [
+    { category: 'legs_compound_quad', preferred: 'Hack Squat' },
+    { category: 'legs_compound_ham',  preferred: 'Romanian Deadlift' },
+  ],
+  accessoriesA: LEGS_HAM.accessoriesA.map(s => ({ ...s, highRep: true })),
+  accessoriesB: LEGS_HAM.accessoriesB.map(s => ({ ...s, highRep: true })),
+  finisher: 'calf',
+}
+
+// ----- split = ordered list of session templates -----
+
+const SPLITS: Record<3 | 4 | 5 | 6, SessionTemplate[]> = {
+  3: [
+    { ...FULL_BODY, finisher: 'core' },
+    { ...FULL_BODY, finisher: 'calf' },
+    FULL_BODY,
+  ],
+  4: [UPPER_A, { ...LOWER_A, finisher: 'calf' }, { ...UPPER_B, finisher: 'core' }, LOWER_B],
+  5: [PUSH, PULL, LEGS_QUAD, { ...ARMS, finisher: 'core' }, LEGS_HAM],
+  6: [PUSH_A, PULL_A, LEGS_A, { ...PUSH_B, finisher: 'core' }, PULL_B, LEGS_B],
+}
+
+// ----- helpers: experience-aware exercise picking -----
+
+function sortByExperience(pool: ExerciseDef[], experience: Experience): ExerciseDef[] {
+  const order = experience === 'beginner' ? ['basic', 'standard']
+              : experience === 'advanced' ? ['advanced', 'standard']
+              : ['standard', 'basic']
+  return [...pool].sort((a, b) => {
+    const ai = order.indexOf(a.tier ?? 'standard')
+    const bi = order.indexOf(b.tier ?? 'standard')
     const av = ai === -1 ? 99 : ai
     const bv = bi === -1 ? 99 : bi
     return av - bv
   })
-  return sorted
 }
 
-// Build phase A and phase B accessory lists. Phase B uses the next options
-// from the same category pool so the user sees variation every 4 weeks.
-function buildAccessories(slots: Slot[], experience: Experience, dayKey: string, goal: Goal): Exercise[][] {
-  const keep = accessoryCount(experience, slots.length)
-  const trimmed = slots.slice(0, keep)
-
-  // Track category cursors per phase so repeated categories grab different movements.
-  const cursors = { A: new Map<ExerciseCategory, number>(), B: new Map<ExerciseCategory, number>() }
-
-  const buildPhase = (phase: 'A' | 'B'): Exercise[] => {
-    return trimmed.map((slot, i) => {
-      const sorted = pickForExperience(EXERCISE_POOL[slot.category], experience)
-      const cursor = cursors[phase]
-      const idx = cursor.get(slot.category) ?? (phase === 'A' ? 0 : 1)
-      cursor.set(slot.category, idx + 1)
-      const def = sorted[idx % sorted.length]
-      return {
-        id: `${dayKey}_${phase.toLowerCase()}_${slot.category}_${i}`,
-        name: def.name,
-        sets: setsForSlot(slot, experience),
-        target: repsForSlot(slot, goal),
-        note: def.note,
-        machineType: def.machineType,
-      }
-    })
-  }
-
-  return [buildPhase('A'), buildPhase('B')]
+function findPreferred(pool: ExerciseDef[], name: string): ExerciseDef | null {
+  return pool.find(e => e.name === name) ?? null
 }
 
-function buildCompounds(slots: Slot[], experience: Experience, dayKey: string, goal: Goal): Exercise[] {
-  const sortedByCat = new Map<ExerciseCategory, ExerciseDef[]>()
+// Order user-selected day keys by weekday (mon, tue, ...).
+function orderDays(selected: string[]): string[] {
+  return DAY_KEYS.filter(d => selected.includes(d))
+}
+
+// ----- build a single session -----
+
+function buildCompounds(slots: CompoundSlot[], experience: Experience, dayKey: string): Exercise[] {
   return slots.map((slot, i) => {
-    if (!sortedByCat.has(slot.category)) {
-      sortedByCat.set(slot.category, pickForExperience(EXERCISE_POOL[slot.category], experience))
-    }
-    const pool = sortedByCat.get(slot.category)!
-    // If the same category appears twice in compounds (rare), pick consecutive entries
-    const sameCategoryCount = slots.slice(0, i).filter(s => s.category === slot.category).length
-    const def = pool[sameCategoryCount % pool.length]
+    const pool = EXERCISE_POOL[slot.category]
+    const preferred = slot.preferred ? findPreferred(pool, slot.preferred) : null
+    const def = preferred ?? sortByExperience(pool, experience)[0]
     return {
-      id: `${dayKey}_c_${slot.category}_${i}`,
+      id: `${dayKey}_c${i}_${slot.category}`,
       name: def.name,
-      sets: setsForSlot(slot, experience),
-      target: repsForSlot(slot, goal),
+      sets: SETS_COMPOUND,
+      target: REPS_COMPOUND,
       note: def.note,
       compound: true,
       machineType: def.machineType,
@@ -217,39 +337,87 @@ function buildCompounds(slots: Slot[], experience: Experience, dayKey: string, g
   })
 }
 
-// ---------- main generator ----------
+function buildAccessoriesForPhase(
+  slots: AccessorySlot[],
+  experience: Experience,
+  dayKey: string,
+  phaseTag: 'a' | 'b',
+): Exercise[] {
+  const trimmed = slots.slice(0, MAX_ACCESSORIES)
+  const cursor = new Map<ExerciseCategory, number>()
+
+  return trimmed.map((slot, i) => {
+    const sorted = sortByExperience(EXERCISE_POOL[slot.category], experience)
+    // Phase B starts at a different offset so the user actually sees variety.
+    const baseOffset = phaseTag === 'a' ? 0 : 1
+    const idx = (cursor.get(slot.category) ?? baseOffset) % sorted.length
+    cursor.set(slot.category, idx + 1)
+    const def = sorted[idx]
+    return {
+      id: `${dayKey}_${phaseTag}${i}_${slot.category}`,
+      name: def.name,
+      sets: SETS_ACCESSORY,
+      target: slot.highRep ? REPS_ACCESSORY_HIGH : REPS_ACCESSORY,
+      note: def.note,
+      machineType: def.machineType,
+    }
+  })
+}
+
+function buildFinisher(
+  kind: 'core' | 'calf' | undefined,
+  enabled: { core: boolean; calf: boolean },
+  dayKey: string,
+): Exercise[] | undefined {
+  if (!kind) return undefined
+  if (kind === 'core' && !enabled.core) return undefined
+  if (kind === 'calf' && !enabled.calf) return undefined
+
+  const defs = kind === 'core' ? CORE_FINISHER : CALF_FINISHER
+  return defs.map((f, i) => ({
+    id: `${dayKey}_f_${kind}_${i}`,
+    name: f.name,
+    sets: f.sets,
+    target: f.target,
+    note: f.note,
+    machineType: f.machineType,
+    finisher: kind,
+  }))
+}
+
+// ----- main entrypoint -----
 
 export type GeneratedPlan = {
   plan: PlanMap
-  dayTypes: Record<string, WorkoutType>      // mon -> 'Push' etc
-  trainingDays: string[]                     // ordered subset of DAY_KEYS
+  dayTypes: Record<string, WorkoutType>
+  trainingDays: string[]
   restDays: string[]
-}
-
-// Order user-selected day keys by weekday so plan ordering feels natural.
-function orderDays(selected: string[]): string[] {
-  return DAY_KEYS.filter(d => selected.includes(d))
 }
 
 export function generatePlan(profile: Profile, selectedDays: string[]): GeneratedPlan {
   const days = orderDays(selectedDays).slice(0, profile.daysPerWeek)
   const split = SPLITS[profile.daysPerWeek]
+  const finisherEnabled = { core: profile.coreFinisher, calf: profile.calfFinisher }
+
   const dayTypes: Record<string, WorkoutType> = {}
   const plan: PlanMap = {}
 
   days.forEach((dayKey, idx) => {
-    const workoutType = split[idx % split.length]
-    dayTypes[dayKey] = workoutType
-    const blueprint = WORKOUT_BLUEPRINTS[workoutType]
+    const template = split[idx % split.length]
+    dayTypes[dayKey] = template.type
 
-    const compounds = buildCompounds(blueprint.compounds, profile.experience, dayKey, profile.goal)
-    const accessories = buildAccessories(blueprint.accessories, profile.experience, dayKey, profile.goal)
+    const compounds = buildCompounds(template.compounds, profile.experience, dayKey)
+    const accessories = [
+      buildAccessoriesForPhase(template.accessoriesA, profile.experience, dayKey, 'a'),
+      buildAccessoriesForPhase(template.accessoriesB, profile.experience, dayKey, 'b'),
+    ]
+    const finisher = buildFinisher(template.finisher, finisherEnabled, dayKey)
 
     const dayPlan: DayPlan = { compounds, accessories }
+    if (finisher) dayPlan.finisher = finisher
     plan[dayKey] = dayPlan
   })
 
   const restDays = DAY_KEYS.filter(d => !days.includes(d))
-
   return { plan, dayTypes, trainingDays: days, restDays }
 }

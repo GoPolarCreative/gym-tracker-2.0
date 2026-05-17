@@ -1,73 +1,88 @@
 import { useState } from 'react'
-import type { Goal, Experience, Profile } from '../hooks/useProfile'
-import type { GymKey } from '../data/plan'
+import type { Goal, Experience, MachineLabel, Profile } from '../hooks/useProfile'
 
-const GOALS: { value: Goal; label: string; blurb: string }[] = [
-  { value: 'size', label: 'Build muscle', blurb: 'Hypertrophy focus — moderate reps, more volume.' },
-  { value: 'strength', label: 'Get stronger', blurb: 'Heavier compounds, lower reps, longer rest.' },
-  { value: 'cut', label: 'Lose fat / get lean', blurb: 'Maintain muscle while in a deficit. Higher rep accessories.' },
-  { value: 'general', label: 'General fitness', blurb: 'Balanced strength + size + conditioning.' },
-]
-
-const EXPERIENCES: { value: Experience; label: string; blurb: string }[] = [
-  { value: 'beginner', label: 'Beginner', blurb: 'Under 1 year of consistent training.' },
-  { value: 'intermediate', label: 'Intermediate', blurb: '1–3 years, lifts have stalled at some point.' },
-  { value: 'advanced', label: 'Advanced', blurb: '3+ years, in tune with your recovery.' },
-]
-
-const DAYS: { value: 3 | 4 | 5 | 6; label: string; blurb: string }[] = [
-  { value: 3, label: '3 days', blurb: 'Push / Pull / Legs once each.' },
+const DAYS_OPTS: { value: 3 | 4 | 5 | 6; label: string; blurb: string }[] = [
+  { value: 3, label: '3 days', blurb: 'Full Body — every session hits every major group.' },
   { value: 4, label: '4 days', blurb: 'Upper / Lower split, twice through.' },
-  { value: 5, label: '5 days', blurb: 'PPL + extra arms/legs.' },
-  { value: 6, label: '6 days', blurb: 'PPL twice through.' },
+  { value: 5, label: '5 days', blurb: 'Push / Pull / Legs + Arms + extra Legs.' },
+  { value: 6, label: '6 days', blurb: 'PPL twice — slightly higher rep B days.' },
 ]
 
-const GYMS: { value: GymKey; label: string; blurb: string }[] = [
-  { value: 'Jetts', label: 'Jetts', blurb: 'Pin-number machines.' },
-  { value: 'FC', label: 'FC', blurb: 'kg-rated machines.' },
+const GOAL_OPTS: { value: Goal; label: string; blurb: string }[] = [
+  { value: 'build_muscle',   label: 'Build Muscle',   blurb: 'Hypertrophy focus.' },
+  { value: 'build_strength', label: 'Build Strength', blurb: 'Heavier compounds, lower reps emphasised.' },
+  { value: 'general',        label: 'General Fitness', blurb: 'Balanced strength + size.' },
 ]
 
-const WEEKDAYS: { value: string; label: string; short: string }[] = [
-  { value: 'mon', label: 'Monday',    short: 'Mon' },
-  { value: 'tue', label: 'Tuesday',   short: 'Tue' },
-  { value: 'wed', label: 'Wednesday', short: 'Wed' },
-  { value: 'thu', label: 'Thursday',  short: 'Thu' },
-  { value: 'fri', label: 'Friday',    short: 'Fri' },
-  { value: 'sat', label: 'Saturday',  short: 'Sat' },
-  { value: 'sun', label: 'Sunday',    short: 'Sun' },
+const EXP_OPTS: { value: Experience; label: string; blurb: string }[] = [
+  { value: 'beginner',     label: 'Beginner',     blurb: 'Under 1 year of consistent training.' },
+  { value: 'intermediate', label: 'Intermediate', blurb: '1–3 years, used to a routine.' },
+  { value: 'advanced',     label: 'Advanced',     blurb: '3+ years, in tune with your recovery.' },
+]
+
+const LABEL_OPTS: { value: MachineLabel; label: string; blurb: string }[] = [
+  { value: 'pin', label: 'Number / Pin', blurb: 'Your machines show pin numbers (1, 2, 3…).' },
+  { value: 'kg',  label: 'KG Labelled',  blurb: 'Your machines show actual kg ratings.' },
+]
+
+const YESNO: { value: boolean; label: string; blurb: string }[] = [
+  { value: true,  label: 'Yes', blurb: '~15 min added to one session per week.' },
+  { value: false, label: 'No',  blurb: 'Skip the finisher.' },
+]
+
+const WEEKDAYS: { value: string; short: string }[] = [
+  { value: 'mon', short: 'Mon' },
+  { value: 'tue', short: 'Tue' },
+  { value: 'wed', short: 'Wed' },
+  { value: 'thu', short: 'Thu' },
+  { value: 'fri', short: 'Fri' },
+  { value: 'sat', short: 'Sat' },
+  { value: 'sun', short: 'Sun' },
 ]
 
 type Props = { onComplete: (p: Profile) => void; onCancel?: () => void; existing?: Profile | null }
 
 export function OnboardingModal({ onComplete, onCancel, existing }: Props) {
   const [step, setStep] = useState(0)
+  const [days, setDays] = useState<3 | 4 | 5 | 6 | null>(existing?.daysPerWeek ?? null)
   const [goal, setGoal] = useState<Goal | null>(existing?.goal ?? null)
   const [exp, setExp] = useState<Experience | null>(existing?.experience ?? null)
-  const [days, setDays] = useState<3 | 4 | 5 | 6 | null>(existing?.daysPerWeek ?? null)
+  const [label, setLabel] = useState<MachineLabel | null>(existing?.machineLabel ?? null)
+  const [coreFin, setCoreFin] = useState<boolean | null>(existing?.coreFinisher ?? null)
+  const [calfFin, setCalfFin] = useState<boolean | null>(existing?.calfFinisher ?? null)
   const [selectedDays, setSelectedDays] = useState<string[]>(existing?.selectedDays ?? [])
-  const [gym, setGym] = useState<GymKey | null>(existing?.primaryGym ?? null)
 
-  const TOTAL_STEPS = 5
-
+  const TOTAL_STEPS = 7
   const daysOk = days !== null && selectedDays.length === days
-  const canAdvance =
-    (step === 0 && goal) ||
-    (step === 1 && exp) ||
-    (step === 2 && days) ||
-    (step === 3 && daysOk) ||
-    (step === 4 && gym)
+
+  const stepValid = () => {
+    if (step === 0) return days !== null
+    if (step === 1) return goal !== null
+    if (step === 2) return exp !== null
+    if (step === 3) return label !== null
+    if (step === 4) return coreFin !== null
+    if (step === 5) return calfFin !== null
+    if (step === 6) return daysOk
+    return false
+  }
 
   const next = () => {
     if (step < TOTAL_STEPS - 1) {
-      // When advancing from days-count, trim selectedDays if it exceeds the new count
-      if (step === 2 && days && selectedDays.length > days) {
+      if (step === 0 && days && selectedDays.length > days) {
         setSelectedDays(selectedDays.slice(0, days))
       }
       setStep(step + 1)
-    } else if (goal && exp && days && gym && daysOk) {
+    } else if (
+      days !== null && goal !== null && exp !== null &&
+      label !== null && coreFin !== null && calfFin !== null && daysOk
+    ) {
       onComplete({
-        goal, experience: exp, daysPerWeek: days, selectedDays,
-        primaryGym: gym,
+        daysPerWeek: days,
+        goal, experience: exp,
+        machineLabel: label,
+        coreFinisher: coreFin,
+        calfFinisher: calfFin,
+        selectedDays,
         startedAt: existing?.startedAt ?? new Date().toISOString(),
         completed: true,
       })
@@ -80,13 +95,13 @@ export function OnboardingModal({ onComplete, onCancel, existing }: Props) {
     if (!days) return
     setSelectedDays(curr => {
       if (curr.includes(d)) return curr.filter(x => x !== d)
-      if (curr.length >= days) return curr  // cap at target count
+      if (curr.length >= days) return curr
       return [...curr, d]
     })
   }
 
   const Card = ({
-    selected, onClick, label, blurb,
+    selected, onClick, label: cardLabel, blurb,
   }: { selected: boolean; onClick: () => void; label: string; blurb: string }) => (
     <button
       onClick={onClick}
@@ -96,10 +111,23 @@ export function OnboardingModal({ onComplete, onCancel, existing }: Props) {
           : 'border-[#2a2b2d] hover:border-[#3a3b3e] bg-[#1e2022]'
       }`}
     >
-      <div className="text-white font-bold text-base">{label}</div>
+      <div className="text-white font-bold text-base">{cardLabel}</div>
       <div className="text-white/55 text-xs font-medium mt-1">{blurb}</div>
     </button>
   )
+
+  const stepTitle = () => {
+    switch (step) {
+      case 0: return 'How many days a week?'
+      case 1: return 'Main goal?'
+      case 2: return 'Experience level?'
+      case 3: return 'Machine labelling?'
+      case 4: return 'Add a core finisher? (~15 min)'
+      case 5: return 'Add a calf finisher? (~15 min)'
+      case 6: return `Pick your ${days ?? ''} training days`
+    }
+    return ''
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -107,35 +135,35 @@ export function OnboardingModal({ onComplete, onCancel, existing }: Props) {
         <div className="px-5 py-4 border-b border-[#2a2b2d] flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-xs font-bold tracking-widest uppercase text-white/40">Step {step + 1} of {TOTAL_STEPS}</div>
-            <div className="text-white font-bold text-lg mt-0.5">
-              {step === 0 && 'What\'s your main goal?'}
-              {step === 1 && 'How experienced are you?'}
-              {step === 2 && 'How many days a week?'}
-              {step === 3 && `Pick your ${days ?? ''} training days`}
-              {step === 4 && 'Which gym do you go to most?'}
-            </div>
+            <div className="text-white font-bold text-lg mt-0.5">{stepTitle()}</div>
           </div>
           <div className="flex gap-1.5 shrink-0">
             {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-              <div
-                key={i}
-                className={`w-5 h-1 rounded-full ${i <= step ? 'bg-[#3ecf6e]' : 'bg-[#2a2b2d]'}`}
-              />
+              <div key={i} className={`w-4 h-1 rounded-full ${i <= step ? 'bg-[#3ecf6e]' : 'bg-[#2a2b2d]'}`} />
             ))}
           </div>
         </div>
 
         <div className="p-5 flex flex-col gap-2.5 max-h-[60vh] overflow-y-auto">
-          {step === 0 && GOALS.map(g => (
-            <Card key={g.value} selected={goal === g.value} onClick={() => setGoal(g.value)} label={g.label} blurb={g.blurb} />
-          ))}
-          {step === 1 && EXPERIENCES.map(e => (
-            <Card key={e.value} selected={exp === e.value} onClick={() => setExp(e.value)} label={e.label} blurb={e.blurb} />
-          ))}
-          {step === 2 && DAYS.map(d => (
+          {step === 0 && DAYS_OPTS.map(d => (
             <Card key={d.value} selected={days === d.value} onClick={() => { setDays(d.value); setSelectedDays([]) }} label={d.label} blurb={d.blurb} />
           ))}
-          {step === 3 && (
+          {step === 1 && GOAL_OPTS.map(g => (
+            <Card key={g.value} selected={goal === g.value} onClick={() => setGoal(g.value)} label={g.label} blurb={g.blurb} />
+          ))}
+          {step === 2 && EXP_OPTS.map(e => (
+            <Card key={e.value} selected={exp === e.value} onClick={() => setExp(e.value)} label={e.label} blurb={e.blurb} />
+          ))}
+          {step === 3 && LABEL_OPTS.map(l => (
+            <Card key={l.value} selected={label === l.value} onClick={() => setLabel(l.value)} label={l.label} blurb={l.blurb} />
+          ))}
+          {step === 4 && YESNO.map(o => (
+            <Card key={String(o.value)} selected={coreFin === o.value} onClick={() => setCoreFin(o.value)} label={o.label} blurb={o.blurb} />
+          ))}
+          {step === 5 && YESNO.map(o => (
+            <Card key={String(o.value)} selected={calfFin === o.value} onClick={() => setCalfFin(o.value)} label={o.label} blurb={o.blurb} />
+          ))}
+          {step === 6 && (
             <div>
               <div className="text-xs font-medium text-white/55 mb-3">
                 Pick {days} weekdays you'll train. Tap to toggle.
@@ -165,9 +193,6 @@ export function OnboardingModal({ onComplete, onCancel, existing }: Props) {
               </div>
             </div>
           )}
-          {step === 4 && GYMS.map(g => (
-            <Card key={g.value} selected={gym === g.value} onClick={() => setGym(g.value)} label={g.label} blurb={g.blurb} />
-          ))}
         </div>
 
         <div className="px-5 py-4 border-t border-[#2a2b2d] flex justify-between items-center gap-3">
@@ -190,7 +215,7 @@ export function OnboardingModal({ onComplete, onCancel, existing }: Props) {
           </div>
           <button
             onClick={next}
-            disabled={!canAdvance}
+            disabled={!stepValid()}
             className="bg-[#3ecf6e] text-[#111213] font-bold text-sm tracking-widest uppercase px-6 py-2.5 rounded-lg hover:opacity-85 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {step === TOTAL_STEPS - 1 ? 'Start Training' : 'Next'}

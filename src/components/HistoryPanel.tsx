@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { getSections, getPhaseLabel, getUnitLabel, type PlanMap } from '../data/plan'
-import { useGym } from '../hooks/useGym'
+import { useProfile, getMachineLabel } from '../hooks/useProfile'
 import type { WorkoutType } from '../lib/planGenerator'
 
-const TYPE_DISPLAY: Record<WorkoutType, string> = {
-  Push: 'Push', Pull: 'Pull', Legs: 'Legs', Arms: 'Arms',
-  Upper: 'Upper', Lower: 'Lower', FullBody: 'Full Body',
+function readField(week: number, day: string, exId: string, set: number, field: string) {
+  return (
+    localStorage.getItem(`ppl_w${week}_${day}_${exId}_s${set}_${field}`) ||
+    localStorage.getItem(`ppl_w${week}_${day}_${exId}_s${set}_${field}__Jetts`) ||
+    localStorage.getItem(`ppl_w${week}_${day}_${exId}_s${set}_${field}__FC`)
+  )
 }
 
-function readField(week: number, day: string, exId: string, set: number, field: string, gym: string) {
-  return (
-    localStorage.getItem(`ppl_w${week}_${day}_${exId}_s${set}_${field}__${gym}`) ||
-    localStorage.getItem(`ppl_w${week}_${day}_${exId}_s${set}_${field}`)
-  )
+const DAY_SHORT: Record<string, string> = {
+  mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
 }
 
 type Props = {
@@ -23,28 +23,22 @@ type Props = {
 }
 
 export function HistoryPanel({ totalWeeks, userPlan, dayTypes, trainingDays }: Props) {
+  const { profile } = useProfile()
+  const machineLabel = getMachineLabel(profile)
   const days = trainingDays.length > 0 ? trainingDays : ['mon', 'tue', 'wed', 'fri', 'sat']
   const [selectedDay, setSelectedDay] = useState(days[0])
-  const [gym] = useGym()
   const weeks = Array.from({ length: totalWeeks }, (_, i) => totalWeeks - i)
-
-  const dayShort: Record<string, string> = {
-    mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
-  }
 
   const dayLabelFor = (d: string) => {
     const wt = dayTypes[d]
-    return wt ? `${dayShort[d]} · ${TYPE_DISPLAY[wt]}` : dayShort[d]
+    return wt ? `${DAY_SHORT[d]} · ${wt}` : DAY_SHORT[d]
   }
 
   return (
     <div>
-      <h2 className="text-5xl font-extrabold tracking-wide uppercase text-[#a78bfa] mb-2">
+      <h2 className="text-5xl font-extrabold tracking-wide uppercase text-[#a78bfa] mb-6">
         History
       </h2>
-      <div className="text-xs text-white/40 font-medium tracking-widest uppercase mb-6">
-        Showing {gym} logs
-      </div>
 
       <div className="flex gap-2 flex-wrap mb-6">
         {days.map(d => (
@@ -64,11 +58,11 @@ export function HistoryPanel({ totalWeeks, userPlan, dayTypes, trainingDays }: P
 
       <div className="flex flex-col gap-4">
         {weeks.map(w => {
-          const sections = getSections(selectedDay, w, userPlan ?? undefined)
+          const sections = getSections(selectedDay, w, userPlan)
           let hasData = false
           sections.forEach(s => s.exercises.forEach(ex => {
             for (let i = 1; i <= ex.sets; i++) {
-              if (readField(w, selectedDay, ex.id, i, 'w', gym)) hasData = true
+              if (readField(w, selectedDay, ex.id, i, 'w')) hasData = true
             }
           }))
           if (!hasData) return null
@@ -82,13 +76,14 @@ export function HistoryPanel({ totalWeeks, userPlan, dayTypes, trainingDays }: P
               <div className="p-4 flex flex-col gap-4">
                 {sections.map(section =>
                   section.exercises.map(ex => {
-                    const unit = getUnitLabel(ex, gym)
+                    const unit = getUnitLabel(ex, machineLabel)
                     const sets = Array.from({ length: ex.sets }, (_, i) => {
-                      const wv = readField(w, selectedDay, ex.id, i + 1, 'w', gym)
-                      const rv = readField(w, selectedDay, ex.id, i + 1, 'r', gym)
+                      const wv = readField(w, selectedDay, ex.id, i + 1, 'w')
+                      const rv = readField(w, selectedDay, ex.id, i + 1, 'r')
                       const done =
-                        localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_done__${gym}`) === '1' ||
-                        localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_done`) === '1'
+                        localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_done`) === '1' ||
+                        localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_done__Jetts`) === '1' ||
+                        localStorage.getItem(`ppl_w${w}_${selectedDay}_${ex.id}_s${i + 1}_done__FC`) === '1'
                       return { wv, rv, done }
                     }).filter(s => s.wv || s.rv)
 
@@ -116,8 +111,9 @@ export function HistoryPanel({ totalWeeks, userPlan, dayTypes, trainingDays }: P
                 )}
                 {(() => {
                   const notes =
-                    localStorage.getItem(`ppl_w${w}_${selectedDay}_notes__${gym}`) ||
-                    localStorage.getItem(`ppl_w${w}_${selectedDay}_notes`)
+                    localStorage.getItem(`ppl_w${w}_${selectedDay}_notes`) ||
+                    localStorage.getItem(`ppl_w${w}_${selectedDay}_notes__Jetts`) ||
+                    localStorage.getItem(`ppl_w${w}_${selectedDay}_notes__FC`)
                   return notes ? (
                     <div className="text-white/50 text-xs font-medium italic pt-3 border-t border-[#2a2b2d]">"{notes}"</div>
                   ) : null
@@ -128,15 +124,15 @@ export function HistoryPanel({ totalWeeks, userPlan, dayTypes, trainingDays }: P
         })}
 
         {weeks.every(w => {
-          const sections = getSections(selectedDay, w, userPlan ?? undefined)
+          const sections = getSections(selectedDay, w, userPlan)
           return !sections.some(s => s.exercises.some(ex =>
             Array.from({ length: ex.sets }, (_, i) =>
-              readField(w, selectedDay, ex.id, i + 1, 'w', gym)
+              readField(w, selectedDay, ex.id, i + 1, 'w')
             ).some(Boolean)
           ))
         }) && (
           <div className="text-center py-12 text-white/40 text-sm font-medium">
-            No data logged yet for this day at {gym}.
+            No data logged yet for this day.
           </div>
         )}
       </div>

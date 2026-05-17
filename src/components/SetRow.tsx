@@ -1,36 +1,39 @@
 import { useState, useEffect } from 'react'
 import { getKey, setKey, getDoneKey, setDoneKey, getPrevWeight } from '../hooks/useStorage'
-import type { GymKey, MachineType } from '../data/plan'
+import type { MachineLabel } from '../hooks/useProfile'
+import type { MachineType } from '../data/plan'
 
 type Props = {
   week: number
   day: string
   exId: string
   setNum: number
-  gym: GymKey
+  machineLabel: MachineLabel
   machineType?: MachineType
   /** Smart suggestion calculated at the ExerciseCard level (same for every set in the exercise). */
   suggestedWeight?: number | null
+  /** For finisher exercises (e.g. plank seconds) we just collect a value without a kg-input feel. */
+  timeBased?: boolean
 }
 
-export function SetRow({ week, day, exId, setNum, gym, machineType, suggestedWeight }: Props) {
-  const [weight, setWeight] = useState(() => getKey(week, day, exId, setNum, 'w', gym))
-  const [reps, setReps] = useState(() => getKey(week, day, exId, setNum, 'r', gym))
-  const [done, setDone] = useState(() => getDoneKey(week, day, exId, setNum, gym))
-  const prev = getPrevWeight(day, exId, setNum, week, gym)
+export function SetRow({ week, day, exId, setNum, machineLabel, machineType, suggestedWeight, timeBased }: Props) {
+  const [weight, setWeight] = useState(() => getKey(week, day, exId, setNum, 'w'))
+  const [reps, setReps] = useState(() => getKey(week, day, exId, setNum, 'r'))
+  const [done, setDone] = useState(() => getDoneKey(week, day, exId, setNum))
+  const prev = getPrevWeight(day, exId, setNum, week)
 
   useEffect(() => {
-    setWeight(getKey(week, day, exId, setNum, 'w', gym))
-    setReps(getKey(week, day, exId, setNum, 'r', gym))
-    setDone(getDoneKey(week, day, exId, setNum, gym))
-  }, [week, day, exId, setNum, gym])
+    setWeight(getKey(week, day, exId, setNum, 'w'))
+    setReps(getKey(week, day, exId, setNum, 'r'))
+    setDone(getDoneKey(week, day, exId, setNum))
+  }, [week, day, exId, setNum])
 
-  const isPinUnit = machineType === 'pin' && gym === 'Jetts'
-  const unit = isPinUnit ? 'pin' : 'kg'
+  const isPinUnit = machineType === 'machine' && machineLabel === 'pin'
+  const unit = timeBased ? 'sec' : (isPinUnit ? 'pin' : 'kg')
 
-  const handleWeight = (v: string) => { setWeight(v); setKey(week, day, exId, setNum, 'w', v, gym) }
-  const handleReps = (v: string) => { setReps(v); setKey(week, day, exId, setNum, 'r', v, gym) }
-  const handleDone = (v: boolean) => { setDone(v); setDoneKey(week, day, exId, setNum, v, gym) }
+  const handleWeight = (v: string) => { setWeight(v); setKey(week, day, exId, setNum, 'w', v) }
+  const handleReps = (v: string) => { setReps(v); setKey(week, day, exId, setNum, 'r', v) }
+  const handleDone = (v: boolean) => { setDone(v); setDoneKey(week, day, exId, setNum, v) }
 
   const formatSuggestion = (n: number) => {
     if (isPinUnit) return String(Math.round(n))
@@ -72,7 +75,7 @@ export function SetRow({ week, day, exId, setNum, gym, machineType, suggestedWei
           type="number"
           value={reps}
           onChange={e => handleReps(e.target.value)}
-          placeholder="reps"
+          placeholder={timeBased ? 'sec' : 'reps'}
           min={0}
           className={`w-14 h-9 rounded-md text-center text-sm font-semibold bg-[#1e2022] text-white border transition-colors focus:outline-none placeholder:text-white/30
             ${reps ? 'border-[#3ecf6e]/60' : 'border-[#2a2b2d] focus:border-[#3a3b3e]'}`}

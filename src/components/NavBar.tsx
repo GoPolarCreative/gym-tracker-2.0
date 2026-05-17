@@ -1,5 +1,3 @@
-import { useGym } from '../hooks/useGym'
-import type { GymKey } from '../data/plan'
 import type { WorkoutType } from '../lib/planGenerator'
 
 export type AppTab =
@@ -14,23 +12,37 @@ const SHORT_LABELS: Record<string, string> = {
 }
 
 const TYPE_DISPLAY_SHORT: Record<WorkoutType, string> = {
-  Push: 'Push',
-  Pull: 'Pull',
-  Legs: 'Legs',
-  Arms: 'Arms',
-  Upper: 'Upper',
-  Lower: 'Lower',
-  FullBody: 'Full',
+  'Full Body': 'Full',
+  'Upper': 'Upper',
+  'Lower': 'Lower',
+  'Push': 'Push',
+  'Pull': 'Pull',
+  'Legs (Quad)': 'Legs Q',
+  'Arms': 'Arms',
+  'Legs (Ham)': 'Legs H',
+  'Push A': 'Push A',
+  'Pull A': 'Pull A',
+  'Legs A': 'Legs A',
+  'Push B': 'Push B',
+  'Pull B': 'Pull B',
+  'Legs B': 'Legs B',
 }
 
 const TYPE_COLOR: Record<WorkoutType, string> = {
-  Push: 'border-[#f0a500] text-[#f0a500]',
-  Pull: 'border-[#4a9eff] text-[#4a9eff]',
-  Legs: 'border-[#3ecf6e] text-[#3ecf6e]',
-  Arms: 'border-[#ff6b6b] text-[#ff6b6b]',
-  Upper: 'border-[#4a9eff] text-[#4a9eff]',
-  Lower: 'border-[#3ecf6e] text-[#3ecf6e]',
-  FullBody: 'border-[#a78bfa] text-[#a78bfa]',
+  'Full Body': 'border-[#a78bfa] text-[#a78bfa]',
+  'Upper': 'border-[#4a9eff] text-[#4a9eff]',
+  'Lower': 'border-[#3ecf6e] text-[#3ecf6e]',
+  'Push': 'border-[#f0a500] text-[#f0a500]',
+  'Pull': 'border-[#4a9eff] text-[#4a9eff]',
+  'Legs (Quad)': 'border-[#3ecf6e] text-[#3ecf6e]',
+  'Arms': 'border-[#ff6b6b] text-[#ff6b6b]',
+  'Legs (Ham)': 'border-[#3ecf6e] text-[#3ecf6e]',
+  'Push A': 'border-[#f0a500] text-[#f0a500]',
+  'Pull A': 'border-[#4a9eff] text-[#4a9eff]',
+  'Legs A': 'border-[#3ecf6e] text-[#3ecf6e]',
+  'Push B': 'border-[#f0a500] text-[#f0a500]',
+  'Pull B': 'border-[#4a9eff] text-[#4a9eff]',
+  'Legs B': 'border-[#3ecf6e] text-[#3ecf6e]',
 }
 
 const STATIC_TAB_COLORS: Record<string, string> = {
@@ -40,8 +52,6 @@ const STATIC_TAB_COLORS: Record<string, string> = {
   rest: 'border-white text-white',
 }
 
-const GYMS: GymKey[] = ['Jetts', 'FC']
-
 type Props = {
   currentTab: AppTab
   setCurrentTab: (t: AppTab) => void
@@ -49,8 +59,6 @@ type Props = {
 }
 
 export function NavBar({ currentTab, setCurrentTab, dayTypes }: Props) {
-  const [gym, setGym] = useGym()
-
   const trainingTabs = WEEKDAY_KEYS.map(d => {
     const wt = dayTypes[d]
     if (wt) {
@@ -70,7 +78,7 @@ export function NavBar({ currentTab, setCurrentTab, dayTypes }: Props) {
   const extraTabs: { key: AppTab; label: string; activeClass: string }[] = [
     { key: 'body',     label: 'Body',     activeClass: STATIC_TAB_COLORS.body },
     { key: 'history',  label: 'History',  activeClass: STATIC_TAB_COLORS.history },
-    { key: 'settings', label: '⚙',        activeClass: STATIC_TAB_COLORS.settings },
+    { key: 'settings', label: '⚙',       activeClass: STATIC_TAB_COLORS.settings },
   ]
 
   const allTabs = [...trainingTabs, ...extraTabs]
@@ -96,35 +104,6 @@ export function NavBar({ currentTab, setCurrentTab, dayTypes }: Props) {
             )
           })}
         </div>
-
-        <div className="hidden sm:flex items-center gap-1 ml-3 pl-3 border-l border-[#2a2b2d]">
-          {GYMS.map(g => (
-            <button
-              key={g}
-              onClick={() => setGym(g)}
-              className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1.5 rounded-md transition-colors
-                ${gym === g ? 'bg-[#3ecf6e]/15 text-[#3ecf6e]' : 'text-white/40 hover:text-white'}`}
-              aria-pressed={gym === g}
-            >
-              {g}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex sm:hidden items-center gap-1 px-4 py-2 border-t border-[#2a2b2d]">
-        <span className="text-[10px] font-bold tracking-widest uppercase text-white/40 mr-2">Gym</span>
-        {GYMS.map(g => (
-          <button
-            key={g}
-            onClick={() => setGym(g)}
-            className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-md transition-colors
-              ${gym === g ? 'bg-[#3ecf6e]/15 text-[#3ecf6e]' : 'text-white/40 hover:text-white'}`}
-            aria-pressed={gym === g}
-          >
-            {g}
-          </button>
-        ))}
       </div>
     </nav>
   )

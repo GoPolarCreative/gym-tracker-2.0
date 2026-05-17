@@ -2,16 +2,20 @@ import { useState } from 'react'
 import type { Profile } from '../hooks/useProfile'
 
 const GOAL_LABEL: Record<string, string> = {
-  size: 'Build muscle',
-  strength: 'Get stronger',
-  cut: 'Lose fat / get lean',
-  general: 'General fitness',
+  build_muscle: 'Build Muscle',
+  build_strength: 'Build Strength',
+  general: 'General Fitness',
 }
 
 const EXP_LABEL: Record<string, string> = {
   beginner: 'Beginner',
   intermediate: 'Intermediate',
   advanced: 'Advanced',
+}
+
+const LABEL_DISPLAY: Record<string, string> = {
+  pin: 'Number / Pin',
+  kg: 'KG Labelled',
 }
 
 const DAY_FULL: Record<string, string> = {
@@ -41,6 +45,10 @@ export function SettingsPanel({ profile, onEdit, onWipeAll }: Props) {
         {profile ? (
           <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
             <div>
+              <div className="text-[10px] font-bold tracking-widest uppercase text-white/40 mb-0.5">Frequency</div>
+              <div className="text-white font-semibold">{profile.daysPerWeek} days/week</div>
+            </div>
+            <div>
               <div className="text-[10px] font-bold tracking-widest uppercase text-white/40 mb-0.5">Goal</div>
               <div className="text-white font-semibold">{GOAL_LABEL[profile.goal]}</div>
             </div>
@@ -49,12 +57,16 @@ export function SettingsPanel({ profile, onEdit, onWipeAll }: Props) {
               <div className="text-white font-semibold">{EXP_LABEL[profile.experience]}</div>
             </div>
             <div>
-              <div className="text-[10px] font-bold tracking-widest uppercase text-white/40 mb-0.5">Frequency</div>
-              <div className="text-white font-semibold">{profile.daysPerWeek} days/week</div>
+              <div className="text-[10px] font-bold tracking-widest uppercase text-white/40 mb-0.5">Machine labelling</div>
+              <div className="text-white font-semibold">{LABEL_DISPLAY[profile.machineLabel]}</div>
             </div>
             <div>
-              <div className="text-[10px] font-bold tracking-widest uppercase text-white/40 mb-0.5">Primary gym</div>
-              <div className="text-white font-semibold">{profile.primaryGym}</div>
+              <div className="text-[10px] font-bold tracking-widest uppercase text-white/40 mb-0.5">Core finisher</div>
+              <div className="text-white font-semibold">{profile.coreFinisher ? 'On' : 'Off'}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold tracking-widest uppercase text-white/40 mb-0.5">Calf finisher</div>
+              <div className="text-white font-semibold">{profile.calfFinisher ? 'On' : 'Off'}</div>
             </div>
             <div className="col-span-2">
               <div className="text-[10px] font-bold tracking-widest uppercase text-white/40 mb-0.5">Training days</div>
@@ -76,7 +88,7 @@ export function SettingsPanel({ profile, onEdit, onWipeAll }: Props) {
         </div>
         <div className="p-4">
           <p className="text-white/55 text-xs font-medium mb-3">
-            Re-run the questionnaire to change your goal, days, or gym. Your existing logged data stays put unless you also wipe it below.
+            Re-run the questionnaire to change any answer. Your existing logged data stays put.
           </p>
           <button
             onClick={onEdit}
@@ -93,7 +105,7 @@ export function SettingsPanel({ profile, onEdit, onWipeAll }: Props) {
         </div>
         <div className="p-4">
           <p className="text-white/55 text-xs font-medium mb-3">
-            Wipes every set, note, bodyweight entry, and the active plan. Use this if you want a totally clean slate.
+            Wipes every set, note, bodyweight entry, swap, and the active plan. Use this if you want a totally clean slate.
           </p>
           {confirmWipe ? (
             <div className="flex gap-2 items-center flex-wrap">

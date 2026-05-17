@@ -2,37 +2,43 @@ import { useState, useEffect } from 'react'
 import { getSections, DAY_LABELS, type PlanMap } from '../data/plan'
 import { ExerciseCard } from './ExerciseCard'
 import { getNotesKey, setNotesKey } from '../hooks/useStorage'
-import { useGym } from '../hooks/useGym'
+import { useProfile, getMachineLabel } from '../hooks/useProfile'
 import type { WorkoutType } from '../lib/planGenerator'
 
 const TYPE_COLORS: Record<string, string> = {
   Push: 'text-[#f0a500] bg-[#f0a500]/10',
+  'Push A': 'text-[#f0a500] bg-[#f0a500]/10',
+  'Push B': 'text-[#f0a500] bg-[#f0a500]/10',
   Pull: 'text-[#4a9eff] bg-[#4a9eff]/10',
+  'Pull A': 'text-[#4a9eff] bg-[#4a9eff]/10',
+  'Pull B': 'text-[#4a9eff] bg-[#4a9eff]/10',
   Legs: 'text-[#3ecf6e] bg-[#3ecf6e]/10',
+  'Legs A': 'text-[#3ecf6e] bg-[#3ecf6e]/10',
+  'Legs B': 'text-[#3ecf6e] bg-[#3ecf6e]/10',
+  'Legs (Quad)': 'text-[#3ecf6e] bg-[#3ecf6e]/10',
+  'Legs (Ham)':  'text-[#3ecf6e] bg-[#3ecf6e]/10',
   Arms: 'text-[#ff6b6b] bg-[#ff6b6b]/10',
   Upper: 'text-[#4a9eff] bg-[#4a9eff]/10',
   Lower: 'text-[#3ecf6e] bg-[#3ecf6e]/10',
-  FullBody: 'text-[#a78bfa] bg-[#a78bfa]/10',
+  'Full Body': 'text-[#a78bfa] bg-[#a78bfa]/10',
 }
 
 const TITLE_COLORS: Record<string, string> = {
   Push: 'text-[#f0a500]',
+  'Push A': 'text-[#f0a500]',
+  'Push B': 'text-[#f0a500]',
   Pull: 'text-[#4a9eff]',
+  'Pull A': 'text-[#4a9eff]',
+  'Pull B': 'text-[#4a9eff]',
   Legs: 'text-[#3ecf6e]',
+  'Legs A': 'text-[#3ecf6e]',
+  'Legs B': 'text-[#3ecf6e]',
+  'Legs (Quad)': 'text-[#3ecf6e]',
+  'Legs (Ham)': 'text-[#3ecf6e]',
   Arms: 'text-[#ff6b6b]',
   Upper: 'text-[#4a9eff]',
   Lower: 'text-[#3ecf6e]',
-  FullBody: 'text-[#a78bfa]',
-}
-
-const TYPE_DISPLAY: Record<WorkoutType, string> = {
-  Push: 'Push',
-  Pull: 'Pull',
-  Legs: 'Legs',
-  Arms: 'Arms',
-  Upper: 'Upper',
-  Lower: 'Lower',
-  FullBody: 'Full Body',
+  'Full Body': 'text-[#a78bfa]',
 }
 
 type Props = {
@@ -43,16 +49,17 @@ type Props = {
 }
 
 export function DayPanel({ day, week, userPlan, workoutType }: Props) {
-  const [gym] = useGym()
-  const sections = getSections(day, week, userPlan ?? undefined)
+  const { profile } = useProfile()
+  const machineLabel = getMachineLabel(profile)
+  const sections = getSections(day, week, userPlan)
   const label = DAY_LABELS[day]
-  const type = workoutType ?? 'FullBody'
-  const [notes, setNotes] = useState(() => getNotesKey(week, day, gym))
+  const type = workoutType ?? 'Full Body'
+  const [notes, setNotes] = useState(() => getNotesKey(week, day))
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    setNotes(getNotesKey(week, day, gym))
-  }, [week, day, gym])
+    setNotes(getNotesKey(week, day))
+  }, [week, day])
 
   if (sections.length === 0) {
     return (
@@ -65,11 +72,11 @@ export function DayPanel({ day, week, userPlan, workoutType }: Props) {
 
   const handleNotes = (v: string) => {
     setNotes(v)
-    setNotesKey(week, day, v, gym)
+    setNotesKey(week, day, v)
   }
 
   const handleMasterSave = () => {
-    localStorage.setItem(`ppl_w${week}_${day}_committed__${gym}`, '1')
+    localStorage.setItem(`ppl_w${week}_${day}_committed`, '1')
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -77,14 +84,11 @@ export function DayPanel({ day, week, userPlan, workoutType }: Props) {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-6 flex-wrap">
-        <h2 className={`text-5xl font-extrabold tracking-wide uppercase leading-none ${TITLE_COLORS[type]}`}>
+        <h2 className={`text-5xl font-extrabold tracking-wide uppercase leading-none ${TITLE_COLORS[type] ?? 'text-white'}`}>
           {label}
         </h2>
-        <span className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-md ${TYPE_COLORS[type]}`}>
-          {TYPE_DISPLAY[type]}
-        </span>
-        <span className="text-xs font-semibold tracking-widest uppercase px-2.5 py-1 rounded-md bg-white/5 text-white/60">
-          @ {gym}
+        <span className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-md ${TYPE_COLORS[type] ?? 'bg-white/10 text-white'}`}>
+          {type}
         </span>
       </div>
 
@@ -95,7 +99,7 @@ export function DayPanel({ day, week, userPlan, workoutType }: Props) {
             <div className="flex-1 h-px bg-[#2a2b2d]" />
           </div>
           {section.exercises.map(ex => (
-            <ExerciseCard key={ex.id} exercise={ex} week={week} day={day} gym={gym} rotates={!!section.rotates} />
+            <ExerciseCard key={ex.id} exercise={ex} week={week} day={day} machineLabel={machineLabel} rotates={!!section.rotates} />
           ))}
         </div>
       ))}
