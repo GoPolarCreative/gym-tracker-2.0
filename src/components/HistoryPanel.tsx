@@ -18,11 +18,13 @@ const DAY_SHORT: Record<string, string> = {
 type Props = {
   totalWeeks: number
   userPlan: PlanMap | null
-  dayTypes: Record<string, WorkoutType>
+  dayTypes?: Record<string, WorkoutType>
   trainingDays: string[]
+  /** Optional override mapping day key -> display name. Used by custom plans whose day keys aren't weekdays. */
+  dayNames?: Record<string, string>
 }
 
-export function HistoryPanel({ totalWeeks, userPlan, dayTypes, trainingDays }: Props) {
+export function HistoryPanel({ totalWeeks, userPlan, dayTypes, trainingDays, dayNames }: Props) {
   const { profile } = useProfile()
   const machineLabel = getMachineLabel(profile)
   const days = trainingDays.length > 0 ? trainingDays : ['mon', 'tue', 'wed', 'fri', 'sat']
@@ -30,8 +32,13 @@ export function HistoryPanel({ totalWeeks, userPlan, dayTypes, trainingDays }: P
   const weeks = Array.from({ length: totalWeeks }, (_, i) => totalWeeks - i)
 
   const dayLabelFor = (d: string) => {
-    const wt = dayTypes[d]
-    return wt ? `${DAY_SHORT[d]} · ${wt}` : DAY_SHORT[d]
+    if (dayNames && dayNames[d]) {
+      const wt = dayTypes?.[d]
+      return wt ? `${dayNames[d]} · ${wt}` : dayNames[d]
+    }
+    const wt = dayTypes?.[d]
+    const short = DAY_SHORT[d] ?? d
+    return wt ? `${short} · ${wt}` : short
   }
 
   return (

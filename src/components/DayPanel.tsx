@@ -46,14 +46,19 @@ type Props = {
   week: number
   userPlan: PlanMap | null
   workoutType?: WorkoutType
+  /** Override the default DAY_LABELS lookup. Used for custom plans whose day keys aren't weekdays. */
+  displayName?: string
 }
 
-export function DayPanel({ day, week, userPlan, workoutType }: Props) {
+export function DayPanel({ day, week, userPlan, workoutType, displayName }: Props) {
   const { profile } = useProfile()
   const machineLabel = getMachineLabel(profile)
   const sections = getSections(day, week, userPlan)
-  const label = DAY_LABELS[day]
-  const type = workoutType ?? 'Full Body'
+  const label = displayName ?? DAY_LABELS[day] ?? day
+  // No workoutType means this is a custom plan day — render with a neutral colour.
+  const type = workoutType
+  const titleClass = type ? (TITLE_COLORS[type] ?? 'text-white') : 'text-white'
+  const chipClass = type ? (TYPE_COLORS[type] ?? 'bg-white/10 text-white') : ''
   const [notes, setNotes] = useState(() => getNotesKey(week, day))
   const [saved, setSaved] = useState(false)
 
@@ -84,12 +89,14 @@ export function DayPanel({ day, week, userPlan, workoutType }: Props) {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-6 flex-wrap">
-        <h2 className={`text-5xl font-extrabold tracking-wide uppercase leading-none ${TITLE_COLORS[type] ?? 'text-white'}`}>
+        <h2 className={`text-5xl font-extrabold tracking-wide uppercase leading-none ${titleClass}`}>
           {label}
         </h2>
-        <span className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-md ${TYPE_COLORS[type] ?? 'bg-white/10 text-white'}`}>
-          {type}
-        </span>
+        {type && (
+          <span className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-md ${chipClass}`}>
+            {type}
+          </span>
+        )}
       </div>
 
       {sections.map(section => (

@@ -126,6 +126,17 @@ export function BodyPanel() {
     [entries]
   )
 
+  const { lightest, heaviest } = useMemo(() => {
+    if (entries.length === 0) return { lightest: null, heaviest: null }
+    let lo = entries[0]
+    let hi = entries[0]
+    for (const e of entries) {
+      if (e.weight < lo.weight) lo = e
+      if (e.weight > hi.weight) hi = e
+    }
+    return { lightest: lo, heaviest: hi }
+  }, [entries])
+
   const handleSave = () => {
     const w = parseFloat(weight)
     if (!Number.isFinite(w) || w <= 0) return
@@ -142,6 +153,21 @@ export function BodyPanel() {
       <h2 className="text-5xl font-extrabold tracking-wide uppercase text-[#3ecf6e] mb-6">
         Body
       </h2>
+
+      {lightest && heaviest && (
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="bg-[#18191b] border border-[#2a2b2d] rounded-xl px-4 py-3">
+            <div className="text-[10px] font-bold tracking-widest uppercase text-[#4a9eff] mb-1">Lightest</div>
+            <div className="text-white font-extrabold text-2xl">{lightest.weight.toFixed(1)}<span className="text-white/40 text-sm font-semibold ml-1">kg</span></div>
+            <div className="text-white/40 text-[10px] font-semibold tracking-wider uppercase mt-1">{formatShortDate(lightest.date)}</div>
+          </div>
+          <div className="bg-[#18191b] border border-[#2a2b2d] rounded-xl px-4 py-3">
+            <div className="text-[10px] font-bold tracking-widest uppercase text-[#ff6b6b] mb-1">Heaviest</div>
+            <div className="text-white font-extrabold text-2xl">{heaviest.weight.toFixed(1)}<span className="text-white/40 text-sm font-semibold ml-1">kg</span></div>
+            <div className="text-white/40 text-[10px] font-semibold tracking-wider uppercase mt-1">{formatShortDate(heaviest.date)}</div>
+          </div>
+        </div>
+      )}
 
       <div className="mb-6">
         <BodyChart entries={entries} />

@@ -26,6 +26,9 @@ export type DayPlan = {
   compounds: Exercise[]
   accessories: Exercise[][]   // [Phase A list, Phase B list]
   finisher?: Exercise[]       // optional finisher (same every phase)
+  // If set, the day is a custom user-built plan and the UI renders this single
+  // list under one "Exercises" header instead of the compounds/accessories split.
+  flat?: Exercise[]
 }
 
 export type PlanMap = Record<string, DayPlan>
@@ -57,11 +60,25 @@ export function getSections(dayKey: string, week: number, plan: PlanMap | null) 
   if (!plan) return []
   const d = plan[dayKey]
   if (!d) return []
+
+  // Custom user-built plan: just one flat section, no phase rotation.
+  if (d.flat) {
+    return [{ label: 'Exercises', exercises: d.flat, rotates: false }]
+  }
+
   const accIdx = getAccessoryIndex(week)
-  const sections: { label: string; exercises: Exercise[]; rotates: boolean }[] = [
-    { label: 'Compounds', exercises: d.compounds, rotates: false },
-    { label: `Accessories · Phase ${getPhase(week) + 1}`, exercises: d.accessories[accIdx] ?? [], rotates: true },
-  ]
+  const sections: { label: string; exercises: Exercise[]; rotates: boolean }[] = []
+  if (d.compounds.length > 0) {
+    sections.push({ label: 'Compounds', exercises: d.compounds, rotates: false })
+  }
+  const accList = d.accessories[accIdx] ?? []
+  if (accList.length > 0) {
+    sections.push({
+      label: `Accessories · Phase ${getPhase(week) + 1}`,
+      exercises: accList,
+      rotates: true,
+    })
+  }
   if (d.finisher && d.finisher.length > 0) {
     const isCore = d.finisher[0].finisher === 'core'
     sections.push({
